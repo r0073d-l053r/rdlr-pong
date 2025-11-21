@@ -44,7 +44,7 @@ The game is designed to be fully self-contained in a single HTML file, making it
 
 ## **Setup and Installation**
 
-This game is self-contained in a single HTML file (pongv2.html) and requires no external libraries or web servers (it uses synthetic audio and native Canvas API).
+This game is self-contained in a single HTML file (rdlr_pong.html) and requires no external libraries or web servers (it uses synthetic audio and native Canvas API).
 
 ### **Step-by-Step Instructions**
 
