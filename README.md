@@ -49,6 +49,6 @@ This game is self-contained in a single HTML file (pongv2.html) and requires no 
 ### **Step-by-Step Instructions**
 
 1. **Save the Code:** Copy the entire content of the game and save it into a plain text file named pongv2.html. Ensure the file extension is .html.  
-2. **Open in Browser:** Locate the saved pongv2.html file on your computer.  
+2. **Open in Browser:** Locate the saved rdlr_pong.html file on your computer.  
 3. **Launch the Game:** Double-click the file. It will automatically open in your default web browser (Chrome, Firefox, Edge, etc.).  
 4. **Start Playing:** Click the canvas area and navigate the main menu using the mouse. Select your desired Game Mode and Opponent (AI or Player 2\) to begin the match.
