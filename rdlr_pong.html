@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RD/LR Pong - Power-ups V2</title> 
+    <style>
+        body {
+            display: flex;
+            flex-direction: column; /* Allows elements to stack vertically */
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #222;
+            font-family: Arial, sans-serif;
+            color: #eee;
+        }
+        canvas {
+            background-color: #000;
+            border: 2px solid #fff;
+            display: block; /* Remove extra space below canvas */
+            margin-top: 20px; /* Space from top info */
+            margin-bottom: 20px; /* Space from bottom controls */
+            max-width: 100%; /* Ensure responsiveness in preview */
+            height: auto;
+        }
+        .game-info {
+            text-align: center;
+            width: 100%;
+            font-size: 1.2em;
+            color: #eee;
+        }
+        p#credits {
+            font-size: 0.7em; /* Smaller text */
+            color: #888; /* Slightly dimmer color */
+            margin-top: -10px; /* Pull it up closer to the title */
+            margin-bottom: 10px; /* Space it from scoreInfo */
+        }
+        p#credits a {
+            color: #00BFFF; /* A distinct color for the link */
+            text-decoration: none; /* Remove default underline */
+        }
+        p#credits a:hover {
+            text-decoration: underline; /* Add underline on hover */
+        }
+
+        .controls {
+            text-align: center;
+            width: 100%;
+            font-size: 0.9em;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-info">
+        <h1>RD/LR Pong</h1>
+        <!-- UPDATED HYPERLINK HERE -->
+        <p id="credits">[ vibe-coded by <a href="https://www.r0073dl053r.com/" target="_blank">@r0073dl053r</a> ]</p>
+        <p id="scoreInfo">First to 20 points wins!</p>
+    </div>
+    <canvas id="pongCanvas"></canvas>
+    <div id="controls-display" class="controls">
+        <!-- Controls will be dynamically updated here by JavaScript -->
+    </div>
+
+    <script>
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreInfo = document.getElementById('scoreInfo'); 
+        const controlsDisplay = document.getElementById('controls-display');
+
+        // --- AUDIO REPLACEMENT FOR PREVIEW ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSynthSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'paddle') {
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(150, now);
+                oscillator.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                oscillator.start(now);
+                oscillator.stop(now + 0.1);
+            } else if (type === 'score') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(400, now);
+                oscillator.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                oscillator.start(now);
+                oscillator.stop(now + 0.4);
+            } else if (type === 'powerup') {
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(600, now);
+                oscillator.frequency.linearRampToValueAtTime(1200, now + 0.1);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                oscillator.start(now);
+                oscillator.stop(now + 0.3);
+            } else if (type === 'debuff') {
+                // Lower "thud" sound for debuffs
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(100, now);
+                oscillator.frequency.linearRampToValueAtTime(50, now + 0.3);
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                oscillator.start(now);
+                oscillator.stop(now + 0.3);
+            }
+        }
+
+        canvas.width = 800;
+        canvas.height = 600;
+
+        // Game constants
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+        const PADDLE_WIDTH = 10;
+        const PADDLE_HEIGHT = 100;
+        const BALL_RADIUS = 8;
+        const PLAYER_PADDLE_SPEED = 6; 
+        const WINNING_SCORE = 20; 
+
+        // --- Button style constant ---
+        const BUTTON_CORNER_RADIUS = 15; 
+
+        // --- Explosion Constants ---
+        const EXPLOSION_DURATION = 500; 
+        const NUM_EXPLOSION_PARTICLES = 20;
+        const PARTICLE_SPEED_MAX = 5;
+        const PARTICLE_SIZE_MAX = 5;
+
+        // --- Multi-ball Constants ---
+        const MAX_MULTIBALLS = 500; 
+        const MULTIBALL_SPAWN_INTERVAL = 100; 
+        const MULTIBALL_INITIAL_SPEED = 3;
+
+        // --- Impossible Difficulty Cheats ---
+        const IMPOSSIBLE_AI_MULTIPLIER = 1.05; 
+        const JUMBLE_CHECK_INTERVAL = 3000; 
+        const JUMBLE_PROBABILITY = 0.15; 
+        const JUMBLE_DURATION_MIN = 1500; 
+        const JUMBLE_DURATION_MAX = 3500; 
+
+        let isControlsJumbled = false;
+        let jumbleDurationTimerId = null;
+        let jumbleCheckIntervalId = null; 
+        let jumbleMessageRemaining = 0; 
+
+        // Game state variables
+        let player1Y;
+        let player2Y;
+        let player1Score;
+        let player2Score;
+        let winner; 
+
+        let gameBalls = []; 
+
+        // --- App State and UI Management ---
+        let appState = 'mainMenu'; 
+        let currentDifficulty = 'normal'; 
+        let gameMode = 'classic'; 
+        let playerMode = 'ai'; 
+        let lastSelectedGameMode = 'classic'; 
+
+        const difficultyLevels = {
+            easy: 0.4,   
+            normal: 0.6, 
+            hard: 0.8,    
+            impossible: IMPOSSIBLE_AI_MULTIPLIER 
+        };
+        let AI_SPEED_MULTIPLIER = difficultyLevels[currentDifficulty]; 
+
+        const activeButtons = [];
+
+        let explosionParticles = [];
+        let isExploding = false; 
+        let explosionTimer = 0; 
+
+        let multiBalls = [];
+        let lastMultiBallSpawnTime = 0;
+        
+        let resetScheduledForThisRound = false; 
+        let hoveredButton = null; 
+
+        // --- Power-up System Variables ---
+        const POWERUP_TYPES = {
+            PADDLE_GROW: 'paddle_grow',
+            MULTI_BALL: 'multi_ball',
+            BALL_SUPER_GROW: 'ball_super_grow',
+            PADDLE_SHRINK_OPPONENT: 'paddle_shrink_opponent',
+            BALL_SLOW_OPPONENT: 'ball_slow_opponent'
+        };
+
+        const POWERUP_RADIUS = 15; 
+
+        const POWERUP_DEFINITIONS = {
+            [POWERUP_TYPES.PADDLE_GROW]: { 
+                color: '#00FF00', 
+                description: 'Increases your paddle size (5s).'
+            }, // Green
+            [POWERUP_TYPES.MULTI_BALL]: { 
+                color: '#00FFFF', 
+                description: 'Spawns extra balls immediately.'
+            },   // Cyan
+            [POWERUP_TYPES.BALL_SUPER_GROW]: { 
+                color: '#FF00FF', 
+                description: 'Makes all balls huge (5s).'
+            }, // Magenta
+            [POWERUP_TYPES.PADDLE_SHRINK_OPPONENT]: {
+                color: '#FF0000',
+                description: 'Shrinks opponent\'s paddle by 50% (5s).'
+            }, // Red
+            [POWERUP_TYPES.BALL_SLOW_OPPONENT]: {
+                color: '#FFA500',
+                description: 'Opponent\'s return shots are very slow (5s).'
+            } // Orange
+        };
+
+        const POWERUP_SPAWN_INTERVAL_MIN = 8000; 
+        const POWERUP_SPAWN_INTERVAL_MAX = 15000; 
+        const MAX_ACTIVE_POWERUPS_ON_SCREEN = 2; 
+        const POWERUP_EFFECT_DURATION_MS = 5000; 
+
+        let powerupsOnScreen = []; 
+        let nextPowerUpSpawnTime = 0;
+        
+        // Player Effects
+        let player1PaddleSizeMultiplier = 1; 
+        let player1PaddleGrowEffectEndTime = 0; 
+        
+        // Opponent Debuffs
+        let player2PaddleSizeMultiplier = 1;
+        let player2ShrinkEffectEndTime = 0;
+        
+        let player2WeakShotActive = false;
+        let player2WeakShotEndTime = 0;
+
+        // Input handling
+        let keysPressed = {};
+        document.addEventListener('keydown', (e) => {
+            keysPressed[e.key] = true;
+
+            if ((e.key === ' ' || e.key === 'Spacebar' || e.key === 'Escape')) { 
+                e.preventDefault(); 
+                if (appState === 'playing' && !isExploding) { 
+                    appState = 'paused';
+                    setupPauseMenuButtons(); 
+                } else if (appState === 'paused') {
+                    appState = 'playing';
+                    activeButtons.length = 0; 
+                    hoveredButton = null; 
+                    updateControlsDisplay(); 
+                }
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            keysPressed[e.key] = false;
+        });
+
+        canvas.addEventListener('click', handleButtonClick);
+        canvas.addEventListener('mousemove', handleMouseMove);
+
+        function drawRect(x, y, width, height, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+        }
+
+        function drawCircle(x, y, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2, false);
+            ctx.fill();
+        }
+
+        function drawText(text, x, y, color, fontSize = 40, align = 'center') {
+            ctx.fillStyle = color;
+            ctx.font = `${fontSize}px Arial`;
+            ctx.textAlign = align;
+            ctx.fillText(text, x, y);
+        }
+
+        function drawNet() {
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.setLineDash([10, 10]); 
+            ctx.moveTo(WIDTH / 2, 0);
+            ctx.lineTo(WIDTH / 2, HEIGHT);
+            ctx.stroke();
+            ctx.setLineDash([]); 
+        }
+
+        function createButton(text, x, y, width, height, action, color = 'white', textColor = 'black', hoverColor = null) {
+            return { text, x, y, width, height, action, color, textColor, hoverColor: hoverColor || color };
+        }
+
+        function drawButton(button) {
+            const isHovered = (hoveredButton === button);
+            const displayColor = isHovered && button.hoverColor ? button.hoverColor : button.color;
+
+            ctx.fillStyle = displayColor;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+                 ctx.roundRect(button.x, button.y, button.width, button.height, BUTTON_CORNER_RADIUS);
+            } else {
+                 ctx.rect(button.x, button.y, button.width, button.height);
+            }
+            ctx.fill();
+            drawText(button.text, button.x + button.width / 2, button.y + button.height / 2 + 10, button.textColor, 24);
+        }
+
+        function handleButtonClick(event) {
+            const rect = canvas.getBoundingClientRect(); 
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const mouseX = (event.clientX - rect.left) * scaleX;   
+            const mouseY = (event.clientY - rect.top) * scaleY;    
+
+            if (appState === 'mainMenu') {
+                const PONG_TEXT_FONT_SIZE = 80;
+                const PONG_TEXT_Y = HEIGHT / 4; 
+                
+                ctx.font = `${PONG_TEXT_FONT_SIZE}px Arial`;
+                const textMetricsPONG = ctx.measureText('PONG');
+                const textWidthPONG = textMetricsPONG.width;
+                const textLeftX = (WIDTH / 2) - (textWidthPONG / 2);
+                
+                const textMetricsP = ctx.measureText('P');
+                const textWidthP = textMetricsP.width;
+                const textMetricsO = ctx.measureText('O');
+                const textWidthO = textMetricsO.width;
+                
+                const o_x_start = textLeftX + textWidthP;
+                const o_x_end = o_x_start + textWidthO;
+                const o_y_top = PONG_TEXT_Y - PONG_TEXT_FONT_SIZE * 0.8; 
+                const o_y_bottom = PONG_TEXT_Y + PONG_TEXT_FONT_SIZE * 0.2; 
+
+                if (mouseX >= o_x_start && mouseX <= o_x_end &&
+                    mouseY >= o_y_top && mouseY <= o_y_bottom) {
+                    window.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ?autoplay=1", "_blank"); 
+                    return; 
+                }
+            }
+
+            for (const button of activeButtons) {
+                if (mouseX >= button.x && mouseX <= button.x + button.width &&
+                    mouseY >= button.y && mouseY <= button.y + button.height) {
+                    button.action(); 
+                    hoveredButton = null; 
+                    return; 
+                }
+            }
+        }
+
+        function handleMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const mouseX = (event.clientX - rect.left) * scaleX;
+            const mouseY = (event.clientY - rect.top) * scaleY;
+
+            let foundHover = false;
+            for (const button of activeButtons) {
+                if (mouseX >= button.x && mouseX <= button.x + button.width &&
+                    mouseY >= button.y && mouseY <= button.y + button.height) {
+                    if (hoveredButton !== button) {
+                        hoveredButton = button;
+                    }
+                    foundHover = true;
+                    break; 
+                }
+            }
+            if (!foundHover && hoveredButton !== null) {
+                hoveredButton = null; 
+            }
+        }
+
+        // --- Menu and Game State Setup Functions ---
+
+        function setupMainMenuButtons() {
+            activeButtons.length = 0; 
+            const btnWidth = 200;
+            const btnHeight = 60;
+            const startY = HEIGHT / 2 - btnHeight * 2; 
+            const spacing = btnHeight + 20;
+
+            activeButtons.push(createButton("Classic Pong", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
+                lastSelectedGameMode = 'classic';
+                appState = 'playerModeSelection';
+                setupPlayerModeSelectionButtons();
+            }, 'white', 'black', '#CCC')); 
+            activeButtons.push(createButton("Double or Nothing", (WIDTH - btnWidth) / 2, startY + spacing, btnWidth, btnHeight, () => {
+                lastSelectedGameMode = 'doubleOrNothing';
+                appState = 'playerModeSelection';
+                setupPlayerModeSelectionButtons();
+            }, 'white', 'black', '#CCC'));
+            activeButtons.push(createButton("r0073dm0d3", (WIDTH - btnWidth) / 2, startY + spacing * 2, btnWidth, btnHeight, () => { 
+                lastSelectedGameMode = 'r0073dm0d3';
+                appState = 'playerModeSelection';
+                setupPlayerModeSelectionButtons();
+            }, '#FFD700', 'black', '#FFFF00'));
+            activeButtons.push(createButton("Options", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, () => { 
+                appState = 'options'; 
+                setupOptionsButtons(); 
+            }, 'white', 'black', '#CCC'));
+            hoveredButton = null; 
+            updateControlsDisplay(); 
+        }
+
+        function drawMainMenu() {
+            drawRect(0, 0, WIDTH, HEIGHT, 'black'); 
+            drawText('PONG', WIDTH / 2, HEIGHT / 4, 'white', 80); 
+            for (const button of activeButtons) {
+                drawButton(button);
+            }
+            scoreInfo.textContent = `First to ${WINNING_SCORE} points wins!`; 
+        }
+
+        function setupPlayerModeSelectionButtons() {
+            activeButtons.length = 0;
+            const btnWidth = 200;
+            const btnHeight = 60;
+            const startY = HEIGHT / 2 - btnHeight * 1.5;
+            const spacing = btnHeight + 20;
+
+            activeButtons.push(createButton("Player vs. AI", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
+                gameMode = lastSelectedGameMode;
+                playerMode = 'ai';
+                startGame();
+            }, 'white', 'black', '#CCC'));
+            activeButtons.push(createButton("Player vs. Player", (WIDTH - btnWidth) / 2, startY + spacing, btnWidth, btnHeight, () => {
+                gameMode = lastSelectedGameMode;
+                playerMode = 'player2';
+                startGame();
+            }, 'white', 'black', '#CCC'));
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 2 + 20, btnWidth, btnHeight, () => {
+                appState = 'mainMenu';
+                setupMainMenuButtons();
+            }, '#666', 'white', '#888'));
+            hoveredButton = null;
+            updateControlsDisplay(); 
+        }
+
+        function drawPlayerModeSelection() {
+            drawRect(0, 0, WIDTH, HEIGHT, 'black');
+            drawText('Choose Opponent', WIDTH / 2, HEIGHT / 4, 'white', 60);
+            for (const button of activeButtons) {
+                drawButton(button);
+            }
+        }
+
+        function setupOptionsButtons() {
+            activeButtons.length = 0;
+            const btnWidth = 150;
+            const btnHeight = 50;
+            const startY = HEIGHT / 2 - btnHeight * 2; 
+            const spacing = btnHeight + 15;
+
+            const setDifficulty = (level) => {
+                return () => {
+                    currentDifficulty = level; 
+                    AI_SPEED_MULTIPLIER = difficultyLevels[currentDifficulty]; 
+                    setupOptionsButtons(); 
+                };
+            };
+
+            activeButtons.push(createButton("Easy", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, setDifficulty('easy'), currentDifficulty === 'easy' ? '#4CAF50' : '#444', 'white', currentDifficulty === 'easy' ? 'lightgreen' : '#666'));
+            activeButtons.push(createButton("Normal", (WIDTH - btnWidth) / 2, startY + spacing, btnWidth, btnHeight, setDifficulty('normal'), currentDifficulty === 'normal' ? '#2196F3' : '#444', 'white', currentDifficulty === 'normal' ? 'skyblue' : '#666'));
+            activeButtons.push(createButton("Hard", (WIDTH - btnWidth) / 2, startY + spacing * 2, btnWidth, btnHeight, setDifficulty('hard'), currentDifficulty === 'hard' ? '#F44336' : '#444', 'white', currentDifficulty === 'hard' ? 'lightcoral' : '#666'));
+            activeButtons.push(createButton("Impossible", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, setDifficulty('impossible'), currentDifficulty === 'impossible' ? '#800080' : '#444', 'white', currentDifficulty === 'impossible' ? '#EE82EE' : '#666'));
+            
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 4 + 20, btnWidth, btnHeight, () => {
+                appState = 'mainMenu'; 
+                setupMainMenuButtons(); 
+            }, '#666', 'white', '#888'));
+            hoveredButton = null; 
+            updateControlsDisplay(); 
+        }
+
+        function drawOptionsMenu() {
+            drawRect(0, 0, WIDTH, HEIGHT, 'black'); 
+            drawText('Difficulty', WIDTH / 2, HEIGHT / 4, 'white', 60);
+            for (const button of activeButtons) {
+                drawButton(button);
+            }
+        }
+
+        function setupPauseMenuButtons() {
+            activeButtons.length = 0;
+            const btnWidth = 200;
+            const btnHeight = 60;
+            let startY = HEIGHT / 2 - btnHeight * 1.5;
+            const spacing = btnHeight + 20;
+
+            // Adjust layout if we have the extra button
+            if (gameMode === 'r0073dm0d3') {
+                startY -= 40; // Shift up to make room
+            }
+
+            activeButtons.push(createButton("Resume", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
+                appState = 'playing'; 
+                activeButtons.length = 0; 
+            }, 'white', 'black', '#CCC'));
+
+            let currentY = startY + spacing;
+
+            // Add Power-Ups Guide Button ONLY in r0073dm0d3 mode
+            if (gameMode === 'r0073dm0d3') {
+                activeButtons.push(createButton("Power-Up Guide", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
+                    appState = 'powerUpIndex';
+                    setupPowerUpIndexButtons();
+                }, '#FFD700', 'black', '#FFFFE0'));
+                currentY += spacing;
+            }
+
+            activeButtons.push(createButton("Restart Match", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
+                startGame(); 
+            }, 'white', 'black', '#CCC'));
+            currentY += spacing;
+
+            activeButtons.push(createButton("Main Menu", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
+                appState = 'mainMenu'; 
+                setupMainMenuButtons(); 
+            }, 'white', 'black', '#CCC'));
+
+            hoveredButton = null; 
+            updateControlsDisplay(); 
+        }
+
+        function drawPauseMenu() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            drawText('PAUSED', WIDTH / 2, HEIGHT / 4, 'white', 60);
+            for (const button of activeButtons) {
+                drawButton(button);
+            }
+        }
+
+        // --- Power Up Index Screen ---
+        function setupPowerUpIndexButtons() {
+            activeButtons.length = 0;
+            const btnWidth = 200;
+            const btnHeight = 60;
+            // Place "Back" button at the bottom
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, HEIGHT - 80, btnWidth, btnHeight, () => {
+                appState = 'paused';
+                setupPauseMenuButtons();
+            }, 'white', 'black', '#CCC'));
+        }
+
+        function drawPowerUpIndex() {
+            // Dark background
+            drawRect(0, 0, WIDTH, HEIGHT, 'rgba(20, 20, 20, 0.95)');
+            
+            drawText('Power-Up Guide', WIDTH / 2, 60, 'gold', 50);
+            
+            let startY = 140;
+            const spacing = 70;
+            const types = Object.values(POWERUP_TYPES);
+            
+            ctx.textAlign = 'left';
+            ctx.font = '20px Arial';
+
+            types.forEach((type, index) => {
+                const def = POWERUP_DEFINITIONS[type];
+                const y = startY + index * spacing;
+                
+                // Draw the colored circle
+                drawCircle(150, y, 20, def.color);
+                
+                // Draw the description text
+                ctx.fillStyle = 'white';
+                ctx.fillText(def.description, 200, y + 7);
+            });
+            
+            ctx.textAlign = 'center'; // Reset for buttons
+
+            for (const button of activeButtons) {
+                drawButton(button);
+            }
+        }
+
+        function drawGameOverScreen() {
+            drawText(`${winner} Wins!`, WIDTH / 2, HEIGHT / 2 - 60, 'gold', 60);
+
+            const btnWidth = 200;
+            const btnHeight = 60;
+            const startY = HEIGHT / 2 + 10;
+            const spacing = btnHeight + 20;
+
+            if (activeButtons.length === 0) {
+                activeButtons.push(createButton("Play Again", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
+                    startGame(); 
+                }, 'white', 'black', '#CCC'));
+                activeButtons.push(createButton("Main Menu", (WIDTH - btnWidth) / 2, startY + spacing, btnWidth, btnHeight, () => {
+                    appState = 'mainMenu'; 
+                    setupMainMenuButtons(); 
+                }, 'white', 'black', '#CCC'));
+            }
+
+            for (const button of activeButtons) {
+                drawButton(button);
+            }
+        }
+
+        // --- Power-up System Functions ---
+        function resetPowerUpSystem() {
+            powerupsOnScreen = [];
+            nextPowerUpSpawnTime = 0;
+            
+            // Reset Player Effects
+            player1PaddleSizeMultiplier = 1;
+            player1PaddleGrowEffectEndTime = 0;
+            
+            // Reset Debuffs
+            player2PaddleSizeMultiplier = 1;
+            player2ShrinkEffectEndTime = 0;
+            
+            player2WeakShotActive = false;
+            player2WeakShotEndTime = 0;
+        }
+
+        function spawnPowerUp() {
+            if (powerupsOnScreen.length >= MAX_ACTIVE_POWERUPS_ON_SCREEN) return;
+
+            const types = Object.values(POWERUP_TYPES);
+            const randomType = types[Math.floor(Math.random() * types.length)];
+            const def = POWERUP_DEFINITIONS[randomType];
+
+            let x, y;
+            let collisionDetected;
+            let attempts = 0;
+            const MAX_SPAWN_ATTEMPTS = 10;
+
+            do {
+                collisionDetected = false;
+                x = Math.random() * (WIDTH - POWERUP_RADIUS * 4) + POWERUP_RADIUS * 2; 
+                y = Math.random() * (HEIGHT - POWERUP_RADIUS * 2) + POWERUP_RADIUS;
+
+                if (x < PADDLE_WIDTH + POWERUP_RADIUS * 2 || x > WIDTH - PADDLE_WIDTH - POWERUP_RADIUS * 2) {
+                    collisionDetected = true;
+                }
+                for (const pu of powerupsOnScreen) { 
+                    const dx = x - pu.x;
+                    const dy = y - pu.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < POWERUP_RADIUS * 2) {
+                        collisionDetected = true;
+                        break;
+                    }
+                }
+                attempts++;
+            } while (collisionDetected && attempts < MAX_SPAWN_ATTEMPTS);
+
+            if (!collisionDetected) {
+                powerupsOnScreen.push({
+                    type: randomType,
+                    x: x,
+                    y: y,
+                    radius: POWERUP_RADIUS, 
+                    color: def.color,
+                });
+            }
+        }
+
+        function updatePowerUpSpawning(currentTime) {
+            if (gameMode !== 'r0073dm0d3') return;
+
+            if (currentTime >= nextPowerUpSpawnTime) {
+                spawnPowerUp();
+                nextPowerUpSpawnTime = currentTime + Math.random() * (POWERUP_SPAWN_INTERVAL_MAX - POWERUP_SPAWN_INTERVAL_MIN) + POWERUP_SPAWN_INTERVAL_MIN;
+            }
+        }
+
+        function drawPowerUps() {
+            for (const pu of powerupsOnScreen) {
+                drawCircle(pu.x, pu.y, pu.radius, pu.color); 
+            }
+        }
+
+        function activatePowerUpEffect(type, collectingPlayer) {
+            const currentTime = performance.now();
+
+            switch (type) {
+                case POWERUP_TYPES.PADDLE_GROW:
+                    playSynthSound('powerup'); 
+                    player1PaddleSizeMultiplier = 1.5;
+                    player1PaddleGrowEffectEndTime = currentTime + POWERUP_EFFECT_DURATION_MS;
+                    break;
+                    
+                case POWERUP_TYPES.MULTI_BALL:
+                    playSynthSound('powerup');
+                    let numNewBalls = Math.floor(Math.random() * 2) + 1; 
+                    for(let i = 0; i < numNewBalls; i++) {
+                        const newBallX = WIDTH / 2 + (Math.random() - 0.5) * 50;
+                        const newBallY = HEIGHT / 2 + (Math.random() - 0.5) * 50;
+                        gameBalls.push({
+                            x: newBallX, y: newBallY,
+                            speedX: (Math.random() < 0.5 ? 1 : -1) * (5 + Math.random() * 2),
+                            speedY: (Math.random() < 0.5 ? 1 : -1) * (2 + Math.random() * 3),
+                            radius: BALL_RADIUS,
+                            originalRadius: BALL_RADIUS,
+                            isInPlay: true,
+                            isGrowingActive: false,
+                            growEffectEndTime: 0,
+                            expirationTime: currentTime + POWERUP_EFFECT_DURATION_MS 
+                        });
+                    }
+                    break;
+                    
+                case POWERUP_TYPES.BALL_SUPER_GROW:
+                    playSynthSound('powerup');
+                    gameBalls.forEach(ball => {
+                        if (ball.isInPlay) {
+                            ball.isGrowingActive = true;
+                            ball.growEffectEndTime = currentTime + POWERUP_EFFECT_DURATION_MS;
+                        }
+                    });
+                    break;
+                
+                case POWERUP_TYPES.PADDLE_SHRINK_OPPONENT:
+                    playSynthSound('debuff');
+                    player2PaddleSizeMultiplier = 0.5; // Shrink to 50%
+                    player2ShrinkEffectEndTime = currentTime + POWERUP_EFFECT_DURATION_MS;
+                    break;
+                
+                case POWERUP_TYPES.BALL_SLOW_OPPONENT:
+                    playSynthSound('debuff');
+                    player2WeakShotActive = true;
+                    player2WeakShotEndTime = currentTime + POWERUP_EFFECT_DURATION_MS;
+                    break;
+            }
+        }
+
+        function updateActiveEffects(currentTime) {
+            // Player 1 Paddle Grow Effect
+            if (player1PaddleGrowEffectEndTime > 0 && currentTime >= player1PaddleGrowEffectEndTime) {
+                player1PaddleSizeMultiplier = 1; 
+                player1PaddleGrowEffectEndTime = 0;
+            }
+            
+            // Player 2 Shrink Effect
+            if (player2ShrinkEffectEndTime > 0 && currentTime >= player2ShrinkEffectEndTime) {
+                player2PaddleSizeMultiplier = 1;
+                player2ShrinkEffectEndTime = 0;
+            }
+            
+            // Player 2 Weak Shot Effect
+            if (player2WeakShotEndTime > 0 && currentTime >= player2WeakShotEndTime) {
+                player2WeakShotActive = false;
+                player2WeakShotEndTime = 0;
+            }
+
+            // Ball-specific effects (growing, temporary multi-ball expiration)
+            for (let i = gameBalls.length - 1; i >= 0; i--) {
+                const ball = gameBalls[i];
+
+                // Revert ball super grow
+                if (ball.isGrowingActive && ball.growEffectEndTime > 0 && currentTime >= ball.growEffectEndTime) {
+                    ball.radius = ball.originalRadius; 
+                    ball.isGrowingActive = false;
+                    ball.growEffectEndTime = 0;
+                }
+
+                // Remove temporary multi-balls when expired (even if they didn't score)
+                if (ball.expirationTime && currentTime >= ball.expirationTime) {
+                    ball.isInPlay = false; 
+                    gameBalls.splice(i, 1); 
+                    
+                    if (gameBalls.every(b => !b.isInPlay) && appState === 'playing' && !resetScheduledForThisRound) {
+                         resetScheduledForThisRound = true;
+                         setTimeout(() => {
+                            if (appState === 'playing') {
+                                if (gameMode === 'r0073dm0d3') { 
+                                    resetPowerUpSystem(); 
+                                }
+                                resetBalls(Math.random() < 0.5 ? 'player1' : 'player2');
+                            }
+                         }, EXPLOSION_DURATION);
+                    }
+                }
+            }
+        }
+
+        function getEffectivePaddleHeight(playerIndex) {
+            if (playerIndex === 1) { 
+                return PADDLE_HEIGHT * player1PaddleSizeMultiplier;
+            } else if (playerIndex === 2) {
+                return PADDLE_HEIGHT * player2PaddleSizeMultiplier;
+            }
+            return PADDLE_HEIGHT; 
+        }
+        // --- END Power-up System Variables ---
+
+        // --- Core Game Logic Functions ---
+
+        function resetBalls(scoringPlayer) {
+            if (gameMode === 'r0073dm0d3') {
+                gameBalls = []; 
+
+                const baseSpeedX = 5 + Math.random() * 2;
+                const baseSpeedY = 2 + Math.random() * 3;
+
+                let ball1SpeedX = baseSpeedX;
+                let ball1SpeedY = baseSpeedY;
+                let ball1X = WIDTH / 2 - 40;
+                let ball1Y = HEIGHT / 2 - 40;
+
+                let ball2SpeedX = baseSpeedX;
+                let ball2SpeedY = baseSpeedY;
+                let ball2X = WIDTH / 2 + 40;
+                let ball2Y = HEIGHT / 2 + 40;
+                
+                if (scoringPlayer === 'player1') { 
+                    ball1SpeedX = Math.abs(ball1SpeedX);
+                    ball2SpeedX = Math.abs(ball2SpeedX);
+                } else { 
+                    ball1SpeedX = -Math.abs(ball1SpeedX);
+                    ball2SpeedX = -Math.abs(ball2SpeedX);
+                }
+
+                ball2SpeedX *= -1; 
+                ball2SpeedY *= -1; 
+
+                gameBalls.push({
+                    x: ball1X, y: ball1Y,
+                    speedX: ball1SpeedX, speedY: ball1SpeedY,
+                    radius: BALL_RADIUS,
+                    originalRadius: BALL_RADIUS,
+                    isInPlay: true,
+                    isGrowingActive: false,
+                    growEffectEndTime: 0,
+                    expirationTime: 0
+                });
+                gameBalls.push({
+                    x: ball2X, y: ball2Y,
+                    speedX: ball2SpeedX, speedY: ball2SpeedY,
+                    radius: BALL_RADIUS,
+                    originalRadius: BALL_RADIUS,
+                    isInPlay: true,
+                    isGrowingActive: false,
+                    growEffectEndTime: 0,
+                    expirationTime: 0
+                });
+
+            } else { 
+                gameBalls.forEach((ball, index) => {
+                    ball.x = WIDTH / 2;
+                    ball.y = HEIGHT / 2;
+                    ball.speedY = (Math.random() < 0.5 ? 1 : -1) * (2 + Math.random() * 3);
+                    if (scoringPlayer === 'player1') { 
+                        ball.speedX = (5 + Math.random() * 2);
+                    } else { 
+                        ball.speedX = -(5 + Math.random() * 2);
+                    }
+                    if (gameMode === 'doubleOrNothing') { 
+                        if (index === 0) { 
+                            ball.x = WIDTH / 2 - 40; 
+                            ball.y = HEIGHT / 2 - 40; 
+                            ball.speedX = -(5 + Math.random() * 2); 
+                        } else { 
+                            ball.x = WIDTH / 2 + 40; 
+                            ball.y = HEIGHT / 2 + 40; 
+                            ball.speedX = (5 + Math.random() * 2); 
+                            ball.speedY *= -1; 
+                        }
+                    }
+                    ball.radius = ball.originalRadius; 
+                    ball.isGrowingActive = false; 
+                    ball.growEffectEndTime = 0;
+                    ball.expirationTime = 0; 
+                    ball.isInPlay = true; 
+                });
+            }
+
+            isExploding = false; 
+            explosionParticles = []; 
+            resetScheduledForThisRound = false; 
+        }
+
+        function startGame() {
+            player1Score = 0;
+            player2Score = 0;
+            player1Y = (HEIGHT - PADDLE_HEIGHT) / 2; 
+            player2Y = (HEIGHT - PADDLE_HEIGHT) / 2; 
+            winner = null;
+            appState = 'playing'; 
+            AI_SPEED_MULTIPLIER = difficultyLevels[currentDifficulty]; 
+            activeButtons.length = 0; 
+            hoveredButton = null; 
+            
+            multiBalls = []; 
+            explosionParticles = [];
+            isExploding = false;
+            resetScheduledForThisRound = false;
+            
+            resetPowerUpSystem();
+
+            gameBalls = []; 
+
+            if (gameMode === 'classic') {
+                gameBalls.push({
+                    x: WIDTH / 2, y: HEIGHT / 2, speedX: 0, speedY: 0, 
+                    radius: BALL_RADIUS, originalRadius: BALL_RADIUS, isInPlay: true,
+                    isGrowingActive: false, growEffectEndTime: 0, expirationTime: 0
+                });
+            } 
+            // FIX: Ensure Double or Nothing initializes 2 placeholder balls
+            else if (gameMode === 'doubleOrNothing') {
+                gameBalls.push({ radius: BALL_RADIUS, originalRadius: BALL_RADIUS, isInPlay: true, isGrowingActive: false, growEffectEndTime: 0, expirationTime: 0 });
+                gameBalls.push({ radius: BALL_RADIUS, originalRadius: BALL_RADIUS, isInPlay: true, isGrowingActive: false, growEffectEndTime: 0, expirationTime: 0 });
+            }
+            // FIX: r0073dm0d3 doesn't need explicit push here as resetBalls handles it.
+            
+            resetBalls(Math.random() < 0.5 ? 'player1' : 'player2');
+            updateControlsDisplay(); 
+
+            stopJumbleChecks(); 
+            if (playerMode === 'ai' && currentDifficulty === 'impossible') {
+                startJumbleChecks();
+            }
+        }
+
+        function movePaddles() {
+            const player1EffectiveHeight = getEffectivePaddleHeight(1);
+            if (!isControlsJumbled) { 
+                if (keysPressed['w']) {
+                    player1Y -= PLAYER_PADDLE_SPEED;
+                }
+                if (keysPressed['s']) {
+                    player1Y += PLAYER_PADDLE_SPEED;
+                }
+            } else { 
+                if (keysPressed['w']) {
+                    player1Y += PLAYER_PADDLE_SPEED; 
+                }
+                if (keysPressed['s']) {
+                    player1Y -= PLAYER_PADDLE_SPEED; 
+                }
+            }
+            player1Y = Math.max(0, Math.min(player1Y, HEIGHT - player1EffectiveHeight)); 
+
+            const player2EffectiveHeight = getEffectivePaddleHeight(2);
+            if (playerMode === 'player2') {
+                if (keysPressed['ArrowUp']) {
+                    player2Y -= PLAYER_PADDLE_SPEED;
+                }
+                if (keysPressed['ArrowDown']) {
+                    player2Y += PLAYER_PADDLE_SPEED;
+                }
+            } else { 
+                const targetBall = gameBalls.find(ball => ball.isInPlay);
+                if (targetBall) {
+                    if (currentDifficulty === 'impossible') {
+                        player2Y = targetBall.y - player2EffectiveHeight / 2; 
+                    } else {
+                        let centerPaddleY = player2Y + player2EffectiveHeight / 2;
+                        if (centerPaddleY < targetBall.y - 35) {
+                            player2Y += PLAYER_PADDLE_SPEED * AI_SPEED_MULTIPLIER;
+                        } else if (centerPaddleY > targetBall.y + 35) {
+                            player2Y -= PLAYER_PADDLE_SPEED * AI_SPEED_MULTIPLIER;
+                        }
+                    }
+                }
+            }
+            player2Y = Math.max(0, Math.min(player2Y, HEIGHT - player2EffectiveHeight)); 
+        }
+
+        function checkPaddleCollision(cX, cY, radius, rX, rY, rW, rH) {
+            let testX = cX;
+            let testY = cY;
+
+            if (cX < rX) {
+                testX = rX;         
+            } else if (cX > rX + rW) {
+                testX = rX + rW;    
+            }
+            
+            if (cY < rY) {
+                testY = rY;         
+            } else if (cY > rY + rH) {
+                testY = rY + rH;    
+            }
+
+            let distX = cX - testX;
+            let distY = cY - testY;
+            let distanceSq = (distX * distX) + (distY * distY);
+
+            return distanceSq <= (radius * radius);
+        }
+
+        function moveBalls() {
+            let activeBallsCount = 0; 
+            const currentTime = performance.now();
+
+            if (gameMode === 'doubleOrNothing' && !isExploding) { 
+                for (let i = 0; i < gameBalls.length; i++) {
+                    const ball1 = gameBalls[i];
+                    if (!ball1.isInPlay) continue; 
+
+                    for (let j = i + 1; j < gameBalls.length; j++) { 
+                        const ball2 = gameBalls[j];
+                        if (!ball2.isInPlay) continue; 
+
+                        const dx = ball1.x - ball2.x;
+                        const dy = ball1.y - ball2.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < ball1.radius + ball2.radius) {
+                            createExplosion((ball1.x + ball2.x) / 2, (ball1.y + ball2.y) / 2); 
+                            playSynthSound('score'); 
+
+                            ball1.isInPlay = false; 
+                            ball2.isInPlay = false;
+                        }
+                    }
+                }
+            }
+
+            for (let i = gameBalls.length - 1; i >= 0; i--) { 
+                const ball = gameBalls[i];
+                if (!ball.isInPlay) {
+                    continue; 
+                }
+
+                activeBallsCount++; 
+
+                // Ball Powerup Collision
+                if (gameMode === 'r0073dm0d3') {
+                    for (let puIndex = powerupsOnScreen.length - 1; puIndex >= 0; puIndex--) {
+                        const pu = powerupsOnScreen[puIndex];
+                        const dx = ball.x - pu.x;
+                        const dy = ball.y - pu.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < ball.radius + pu.radius) { 
+                            activatePowerUpEffect(pu.type, 'player1'); 
+                            powerupsOnScreen.splice(puIndex, 1); 
+                            break; 
+                        }
+                    }
+                }
+
+                ball.x += ball.speedX;
+                ball.y += ball.speedY;
+
+                if (ball.y - ball.radius < 0 || ball.y + ball.radius > HEIGHT) {
+                    ball.speedY *= -1;
+                }
+
+                const player1EffectiveHeight = getEffectivePaddleHeight(1);
+                if (ball.speedX < 0 && ball.x - ball.radius < PADDLE_WIDTH) {
+                    if (checkPaddleCollision(ball.x, ball.y, ball.radius, 0, player1Y, PADDLE_WIDTH, player1EffectiveHeight)) {
+                        ball.speedX *= -1; 
+                        playSynthSound('paddle'); 
+                        
+                        ball.x = PADDLE_WIDTH + ball.radius;
+
+                        let deltaY = ball.y - (player1Y + player1EffectiveHeight / 2);
+                        ball.speedY += deltaY * 0.15;
+                        
+                        if (Math.abs(ball.speedX) < 15) ball.speedX *= 1.05;
+                        if (Math.abs(ball.speedY) < 15) ball.speedY *= 1.05;
+
+                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 2) { 
+                            ball.radius += 2; 
+                        }
+                    }
+                }
+
+                const player2EffectiveHeight = getEffectivePaddleHeight(2);
+                if (ball.speedX > 0 && ball.x + ball.radius > WIDTH - PADDLE_WIDTH) {
+                    if (checkPaddleCollision(ball.x, ball.y, ball.radius, WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, player2EffectiveHeight)) {
+                        ball.speedX *= -1; 
+                        playSynthSound('paddle');
+
+                        ball.x = WIDTH - PADDLE_WIDTH - ball.radius;
+                        
+                        let deltaY = ball.y - (player2Y + player2EffectiveHeight / 2);
+                        ball.speedY += deltaY * 0.15;
+
+                        // Apply Weak Shot Effect if Active
+                        if (player2WeakShotActive) {
+                            // Reduce speed significantly
+                            ball.speedX *= 0.5; 
+                            ball.speedY *= 0.5;
+                        } else {
+                            if (Math.abs(ball.speedX) < 15) ball.speedX *= 1.05;
+                            if (Math.abs(ball.speedY) < 15) ball.speedY *= 1.05;
+                        }
+
+                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 2) { 
+                            ball.radius += 2; 
+                        }
+                    }
+                }
+
+                if (ball.x - ball.radius < 0) { 
+                    player2Score++;
+                    playSynthSound('score'); 
+                    createExplosion(ball.x, ball.y);
+                    ball.isInPlay = false; 
+                    checkGameEnd(); 
+                } else if (ball.x + ball.radius > WIDTH) { 
+                    player1Score++;
+                    playSynthSound('score'); 
+                    createExplosion(ball.x, ball.y);
+                    ball.isInPlay = false; 
+                    checkGameEnd(); 
+                }
+            }
+
+            if (appState === 'playing' && gameBalls.every(b => !b.isInPlay) && !resetScheduledForThisRound) {
+                resetScheduledForThisRound = true; 
+                setTimeout(() => {
+                    if (appState === 'playing') {
+                        if (gameMode === 'r0073dm0d3') { 
+                            resetPowerUpSystem(); 
+                        }
+                        const scoringPlayer = (player1Score > player2Score) ? 'player1' : 'player2'; 
+                        resetBalls(scoringPlayer);
+                    }
+                }, EXPLOSION_DURATION);
+            }
+        }
+
+        function checkGameEnd() {
+            if (player1Score >= WINNING_SCORE) {
+                winner = 'Player 1';
+                appState = 'gameOver'; 
+                startMultiBallEffect(); 
+            } else if (player2Score >= WINNING_SCORE) {
+                winner = 'Player 2 (' + (playerMode === 'ai' ? 'AI' : 'Player') + ')'; 
+                appState = 'gameOver'; 
+                startMultiBallEffect(); 
+            }
+        }
+        
+        function createExplosion(x, y) {
+            isExploding = true;
+            explosionTimer = EXPLOSION_DURATION; 
+            for (let i = 0; i < NUM_EXPLOSION_PARTICLES; i++) {
+                explosionParticles.push({
+                    x: x,
+                    y: y,
+                    radius: Math.random() * PARTICLE_SIZE_MAX + 1,
+                    speedX: (Math.random() - 0.5) * PARTICLE_SPEED_MAX * 2,
+                    speedY: (Math.random() - 0.5) * PARTICLE_SPEED_MAX * 2,
+                    life: 1 
+                });
+            }
+        }
+
+        function updateExplosion(deltaTime) {
+            if (!isExploding && explosionParticles.length === 0) return; 
+
+            explosionTimer -= deltaTime;
+            if (explosionParticles.length === 0) {
+                 isExploding = false; 
+            }
+
+            for (let i = explosionParticles.length - 1; i >= 0; i--) {
+                const p = explosionParticles[i];
+                p.x += p.speedX;
+                p.y += p.speedY;
+                p.life -= (deltaTime / EXPLOSION_DURATION); 
+
+                if (p.life <= 0) {
+                    explosionParticles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawExplosion() {
+            for (const p of explosionParticles) {
+                ctx.fillStyle = `rgba(255, 165, 0, ${p.life})`; 
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2, false);
+                ctx.fill();
+            }
+        }
+
+        function startMultiBallEffect() {
+            multiBalls = [];
+            let initialBall = gameBalls.find(ball => ball.isInPlay) || {
+                x: WIDTH / 2, y: HEIGHT / 2,
+                speedX: (Math.random() < 0.5 ? 1 : -1) * MULTIBALL_INITIAL_SPEED,
+                speedY: (Math.random() < 0.5 ? 1 : -1) * MULTIBALL_INITIAL_SPEED
+            };
+            
+            multiBalls.push({
+                x: initialBall.x,
+                y: initialBall.y,
+                radius: BALL_RADIUS,
+                speedX: initialBall.speedX,
+                speedY: initialBall.speedY,
+                color: 'white' 
+            });
+            lastMultiBallSpawnTime = performance.now(); 
+            activeButtons.length = 0; 
+            gameBalls.forEach(ball => ball.isInPlay = false); 
+        }
+
+        function updateMultiBalls(currentTime) {
+            if (multiBalls.length < MAX_MULTIBALLS && (currentTime - lastMultiBallSpawnTime > MULTIBALL_SPAWN_INTERVAL)) {
+                if (multiBalls.length > 0) {
+                    const parentBall = multiBalls[Math.floor(Math.random() * multiBalls.length)];
+                    for (let i = 0; i < 2; i++) { 
+                        multiBalls.push({
+                            x: parentBall.x,
+                            y: parentBall.y,
+                            radius: parentBall.radius * 0.8, 
+                            speedX: (Math.random() - 0.5) * MULTIBALL_INITIAL_SPEED * 2,
+                            speedY: (Math.random() - 0.5) * MULTIBALL_INITIAL_SPEED * 2,
+                            color: `hsl(${Math.random() * 360}, 100%, 70%)` 
+                        });
+                    }
+                }
+                lastMultiBallSpawnTime = currentTime;
+            }
+
+            for (let i = multiBalls.length - 1; i >= 0; i--) {
+                const ball = multiBalls[i];
+                ball.x += ball.speedX;
+                ball.y += ball.speedY;
+
+                if (ball.y - ball.radius < 0 || ball.y + ball.radius > HEIGHT) {
+                    ball.speedY *= -1;
+                }
+                if (ball.x - ball.radius < 0 || ball.x + ball.radius > WIDTH) {
+                    ball.speedX *= -1;
+                }
+            }
+        }
+
+        function drawMultiBalls() {
+            for (const ball of multiBalls) {
+                drawCircle(ball.x, ball.y, ball.radius, ball.color);
+            }
+        }
+
+        function jumbleControls() {
+            isControlsJumbled = true;
+            jumbleMessageRemaining = 1000; 
+
+            const duration = Math.random() * (JUMBLE_DURATION_MAX - JUMBLE_DURATION_MIN) + JUMBLE_DURATION_MIN;
+            jumbleDurationTimerId = setTimeout(() => {
+                isControlsJumbled = false;
+                jumbleDurationTimerId = null;
+                updateControlsDisplay(); 
+            }, duration);
+            updateControlsDisplay(); 
+        }
+
+        function startJumbleChecks() {
+            stopJumbleChecks(); 
+            jumbleCheckIntervalId = setInterval(() => {
+                if (appState === 'playing' && playerMode === 'ai' && currentDifficulty === 'impossible' && !isControlsJumbled) {
+                    if (Math.random() < JUMBLE_PROBABILITY) {
+                        jumbleControls();
+                    }
+                }
+            }, JUMBLE_CHECK_INTERVAL);
+        }
+
+        function stopJumbleChecks() {
+            if (jumbleCheckIntervalId) {
+                clearInterval(jumbleCheckIntervalId);
+                jumbleCheckIntervalId = null;
+            }
+            if (jumbleDurationTimerId) {
+                clearTimeout(jumbleDurationTimerId);
+                jumbleDurationTimerId = null;
+            }
+            isControlsJumbled = false;
+            jumbleMessageRemaining = 0;
+        }
+
+        function updateControlsDisplay() {
+            let controlsHtml = `
+                <p>Player 1 (Left Paddle): W (Up) / S (Down)</p>
+            `;
+            if (appState === 'playing') {
+                if (playerMode === 'ai') {
+                    controlsHtml += `<p>Player 2 (Right Paddle): AI</p>`;
+                    if (currentDifficulty === 'impossible') {
+                        if (isControlsJumbled) {
+                            controlsHtml += `<p style="color: red;">PLAYER 1 CONTROLS JUMBLED!</p>`;
+                        }
+                    }
+                } else {
+                    controlsHtml += `<p>Player 2 (Right Paddle): Arrow Up / Arrow Down</p>`;
+                }
+                controlsHtml += `<p>Press Spacebar or ESC to Pause/Unpause</p>`; 
+            } else {
+                controlsHtml += `<p>Press Spacebar or ESC to Pause/Unpause (during game)</p>`; 
+                controlsHtml += `<p>Click buttons to navigate menus.</p>`;
+            }
+            controlsDisplay.innerHTML = controlsHtml;
+        }
+
+        function drawJumbleMessage(deltaTime) {
+            if (jumbleMessageRemaining > 0) {
+                jumbleMessageRemaining -= deltaTime;
+                if (jumbleMessageRemaining < 0) jumbleMessageRemaining = 0;
+
+                const opacity = jumbleMessageRemaining > 500 ? 1 : jumbleMessageRemaining / 500; 
+                ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`; 
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('CONTROLS JUMBLED!', WIDTH / 2, HEIGHT / 2 - 100);
+            }
+        }
+
+        let lastTime = 0;
+        function gameLoop(currentTime) {
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+
+            ctx.clearRect(0, 0, WIDTH, HEIGHT); 
+
+            switch (appState) {
+                case 'mainMenu':
+                    stopJumbleChecks(); 
+                    explosionParticles = [];
+                    multiBalls = [];
+                    resetPowerUpSystem(); 
+                    drawMainMenu();
+                    break;
+                case 'playerModeSelection': 
+                    stopJumbleChecks(); 
+                    explosionParticles = [];
+                    multiBalls = [];
+                    resetPowerUpSystem(); 
+                    drawPlayerModeSelection();
+                    break;
+                case 'options':
+                    stopJumbleChecks(); 
+                    explosionParticles = [];
+                    multiBalls = [];
+                    resetPowerUpSystem(); 
+                    drawOptionsMenu();
+                    break;
+                case 'playing':
+                    movePaddles();
+                    moveBalls(); 
+                    updateExplosion(deltaTime); 
+                    updateActiveEffects(currentTime); 
+                    updatePowerUpSpawning(currentTime); 
+                    
+                    drawRect(0, 0, WIDTH, HEIGHT, 'black'); 
+                    drawNet();
+                    
+                    drawRect(0, player1Y, PADDLE_WIDTH, getEffectivePaddleHeight(1), 'white'); 
+                    // Draw opponent paddle (possibly red if shrunk)
+                    let p2Color = player2PaddleSizeMultiplier < 1 ? '#FF4444' : 'white';
+                    drawRect(WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, getEffectivePaddleHeight(2), p2Color); 
+                    
+                    for (const ball of gameBalls) {
+                        if (ball.isInPlay) {
+                            drawCircle(ball.x, ball.y, ball.radius, 'white');
+                        }
+                    }
+                    if (explosionParticles.length > 0) { 
+                        drawExplosion();
+                    }
+                    if (gameMode === 'r0073dm0d3') { 
+                        drawPowerUps();
+                    }
+
+                    drawText(player1Score, WIDTH / 4, 50, 'white'); 
+                    drawText(player2Score, WIDTH * 3 / 4, 50, 'white'); 
+                    
+                    scoreInfo.textContent = `Player 1: ${player1Score} | Player 2 (${playerMode === 'ai' ? 'AI' : 'Player'}): ${player2Score}`;
+
+                    drawJumbleMessage(deltaTime); 
+                    break;
+                case 'paused':
+                    drawRect(0, 0, WIDTH, HEIGHT, 'black');
+                    drawNet();
+                    
+                    drawRect(0, player1Y, PADDLE_WIDTH, getEffectivePaddleHeight(1), 'white'); 
+                    drawRect(WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, getEffectivePaddleHeight(2), 'white'); 
+                    
+                    for (const ball of gameBalls) {
+                        if (ball.isInPlay) {
+                            drawCircle(ball.x, ball.y, ball.radius, 'white');
+                        }
+                    }
+                    if (gameMode === 'r0073dm0d3') { 
+                        drawPowerUps();
+                    }
+                    drawText(player1Score, WIDTH / 4, 50, 'white');
+                    drawText(player2Score, WIDTH * 3 / 4, 50, 'white');
+                    scoreInfo.textContent = `Player 1: ${player1Score} | Player 2 (${playerMode === 'ai' ? 'AI' : 'Player'}): ${player2Score}`; 
+
+                    drawPauseMenu();
+                    break;
+                case 'powerUpIndex':
+                    drawPowerUpIndex();
+                    break;
+                case 'gameOver':
+                    stopJumbleChecks(); 
+                    updateMultiBalls(currentTime); 
+                    drawRect(0, 0, WIDTH, HEIGHT, 'black'); 
+                    drawMultiBalls(); 
+                    drawGameOverScreen(); 
+                    scoreInfo.textContent = `${winner} won the match!`; 
+                    break;
+            }
+
+            requestAnimationFrame(gameLoop); 
+        }
+
+        // --- Initial Setup Call ---
+        setupMainMenuButtons(); 
+        requestAnimationFrame(gameLoop); 
+    </script>
+</body>
+</html>
