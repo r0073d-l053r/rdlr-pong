@@ -44,11 +44,11 @@ The game is designed to be fully self-contained in a single HTML file, making it
 
 ## **Setup and Installation**
 
-This game is self-contained in a single HTML file (rdlr_pong-v*.*.*.html) and requires no external libraries or web servers (it uses synthetic audio and native Canvas API).
+This game is self-contained in a single HTML file (rdlr_pong-v#.#.#.html) and requires no external libraries or web servers (it uses synthetic audio and native Canvas API).
 
 ### **Step-by-Step Instructions**
 
-1. **Save the Code:** Copy the entire content of the game and save it into a plain text file named rdlr_pong-v*.*.*.html. Ensure the file extension is .html.  
-2. **Open in Browser:** Locate the saved rdlr_pong-v*.*.*.html file on your computer.  
+1. **Save the Code:** Copy the entire content of the game and save it into a plain text file named rdlr_pong-v#.#.#.html. Ensure the file extension is .html.  
+2. **Open in Browser:** Locate the saved rdlr_pong-v#.#.#.html file on your computer.  
 3. **Launch the Game:** Double-click the file. It will automatically open in your default web browser (Chrome, Firefox, Edge, etc.).  
 4. **Start Playing:** Click the canvas area and navigate the main menu using the mouse. Select your desired Game Mode and Opponent (AI or Player 2\) to begin the match.
