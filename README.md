@@ -27,7 +27,7 @@ The game is designed to be fully self-contained in a single HTML file, making it
 | :---- | :---- | :---- |
 | **Green** (\#00FF00) | **PADDLE GROW** | Increases your paddle size by 50%. |
 | **Cyan** (\#00FFFF) | **MULTI BALL** | Spawns 1-2 extra balls immediately. |
-| **Magenta** (\#FF00FF) | **BALL SUPER GROW** | Makes all balls on the field significantly larger. |
+| **Magenta** (\#FF00FF) | **BALL SUPER GROW** | Makes all balls on the field grow 50% larger everytime they make contact with a paddle for a limited time. |
 | **Red** (\#FF0000) | **PADDLE SHRINK** | Shrinks the opponent's paddle by 50%. |
 | **Orange** (\#FFA500) | **WEAK SHOT** | Opponent's return shots are dramatically slowed down. |
 
