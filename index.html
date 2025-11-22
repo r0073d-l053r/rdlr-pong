@@ -130,8 +130,6 @@
         const BALL_RADIUS = 8;
         
         // --- PHYSICS ENGINE SETTINGS (Pixels Per Second) ---
-        // Speeds are now defined purely in Pixels Per Second.
-        // No multiplier logic or FPS normalization is needed in the loop, just (Speed * deltaTime).
         const SPEED_PADDLE = 400; 
         const SPEED_BALL_BASE = 350; 
         const SPEED_BALL_MAX_RANDOM = 100; 
@@ -144,7 +142,7 @@
         // --- Explosion Constants ---
         const EXPLOSION_DURATION = 500; 
         const NUM_EXPLOSION_PARTICLES = 20;
-        const PARTICLE_SPEED_MAX = 200; // Scaled up for Pixels Per Second
+        const PARTICLE_SPEED_MAX = 200; 
         const PARTICLE_SIZE_MAX = 5;
 
         // --- Multi-ball Constants ---
@@ -221,7 +219,7 @@
             },   // Cyan
             [POWERUP_TYPES.BALL_SUPER_GROW]: { 
                 color: '#FF00FF', 
-                description: 'Makes all balls huge (5s).'
+                description: 'Ball grows 50% on each hit (15s).'
             }, // Magenta
             [POWERUP_TYPES.PADDLE_SHRINK_OPPONENT]: {
                 color: '#FF0000',
@@ -237,6 +235,7 @@
         const POWERUP_SPAWN_INTERVAL_MAX = 15000; 
         const MAX_ACTIVE_POWERUPS_ON_SCREEN = 2; 
         const POWERUP_EFFECT_DURATION_MS = 5000; 
+        const BALL_GROW_DURATION_MS = 15000; 
 
         let powerupsOnScreen = []; 
         let nextPowerUpSpawnTime = 0;
@@ -713,7 +712,7 @@
                             isInPlay: true,
                             isGrowingActive: false,
                             growEffectEndTime: 0,
-                            expirationTime: currentTime + POWERUP_EFFECT_DURATION_MS 
+                            expirationTime: 0 // No expiration for multi-balls
                         });
                     }
                     break;
@@ -723,7 +722,10 @@
                     gameBalls.forEach(ball => {
                         if (ball.isInPlay) {
                             ball.isGrowingActive = true;
-                            ball.growEffectEndTime = currentTime + POWERUP_EFFECT_DURATION_MS;
+                            ball.growEffectEndTime = currentTime + BALL_GROW_DURATION_MS;
+                            // MODIFIED: Don't maximize radius instantly. Just enable the state.
+                            // ball.radius = BALL_RADIUS * 3; <-- Removed this logic if it was there,
+                            // relying on paddle hits now.
                         }
                     });
                     break;
@@ -1077,8 +1079,9 @@
                             ball.speedY *= 1.05;
                         }
 
-                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 2) { 
-                            ball.radius += 2; 
+                        // MODIFIED: Only grow if the effect is active and not too big already
+                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 4) { 
+                            ball.radius *= 1.5; // Grow by 50% on paddle hit
                         }
                     }
                 }
@@ -1105,8 +1108,9 @@
                             }
                         }
 
-                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 2) { 
-                            ball.radius += 2; 
+                        // MODIFIED: Only grow if the effect is active and not too big already
+                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 4) { 
+                            ball.radius *= 1.5; // Grow by 50% on paddle hit
                         }
                     }
                 }
