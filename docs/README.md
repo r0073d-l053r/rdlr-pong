@@ -7,6 +7,7 @@
 RD/LR Pong is a modern, feature-rich implementation of the classic arcade game, built entirely in HTML5 and JavaScript. It expands upon the simple paddle-and-ball concept with three distinct game modes, adjustable AI difficulty (including a challenging 'Impossible' mode), and a chaotic 'r0073dm0d3' mode featuring numerous power-ups and debuffs.
 
 The game is designed to be fully self-contained in a single HTML file, making it easy to host and play in any modern web browser.
+[Play the game here.](https://r0073d-l053r.github.io/rdlr-pong/)
 
 ## **Game Modes**
 
