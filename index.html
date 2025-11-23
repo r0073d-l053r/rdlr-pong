@@ -1057,60 +1057,78 @@
                 ball.x += ball.speedX * timeFactor;
                 ball.y += ball.speedY * timeFactor;
 
-                if (ball.y - ball.radius < 0 || ball.y + ball.radius > HEIGHT) {
+                // --- FIX 1: Y-Axis Clamping (Prevents slide-out) ---
+                if (ball.y - ball.radius < 0) {
+                    ball.y = ball.radius; // Hard stop at top
+                    ball.speedY *= -1;
+                } else if (ball.y + ball.radius > HEIGHT) {
+                    ball.y = HEIGHT - ball.radius; // Hard stop at bottom
                     ball.speedY *= -1;
                 }
 
                 const player1EffectiveHeight = getEffectivePaddleHeight(1);
-                if (ball.speedX < 0 && ball.x - ball.radius < PADDLE_WIDTH) {
-                    if (checkPaddleCollision(ball.x, ball.y, ball.radius, 0, player1Y, PADDLE_WIDTH, player1EffectiveHeight)) {
-                        ball.speedX *= -1; 
-                        playSynthSound('paddle'); 
-                        
-                        ball.x = PADDLE_WIDTH + ball.radius;
+                // --- FIX 2: Broader Collision Check for Player 1 ---
+                // Instead of strict 'less than', check if it overlaps paddle X range
+                if (ball.speedX < 0 && ball.x - ball.radius <= PADDLE_WIDTH) {
+                    // Only check collision if we haven't already passed the paddle
+                    // (Prevent 'backward' collision check if tunneling happened)
+                    if (ball.x + ball.radius > 0) { 
+                        if (checkPaddleCollision(ball.x, ball.y, ball.radius, 0, player1Y, PADDLE_WIDTH, player1EffectiveHeight)) {
+                            ball.speedX *= -1; 
+                            playSynthSound('paddle'); 
+                            
+                            // --- CRITICAL FIX: Snap ball to paddle face ---
+                            ball.x = PADDLE_WIDTH + ball.radius + 1; 
 
-                        let deltaY = ball.y - (player1Y + player1EffectiveHeight / 2);
-                        ball.speedY += deltaY * 5; // Reduced modifier to work with Px/Sec numbers better
+                            let deltaY = ball.y - (player1Y + player1EffectiveHeight / 2);
+                            ball.speedY += deltaY * 5; 
 
-                        // Cap max speed
-                        const currentSpeedMagnitude = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2);
-                        if (currentSpeedMagnitude < 800) {
-                            ball.speedX *= 1.05;
-                            ball.speedY *= 1.05;
-                        }
-
-                        // MODIFIED: Only grow if the effect is active and not too big already
-                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 4) { 
-                            ball.radius *= 1.5; // Grow by 50% on paddle hit
-                        }
-                    }
-                }
-
-                const player2EffectiveHeight = getEffectivePaddleHeight(2);
-                if (ball.speedX > 0 && ball.x + ball.radius > WIDTH - PADDLE_WIDTH) {
-                    if (checkPaddleCollision(ball.x, ball.y, ball.radius, WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, player2EffectiveHeight)) {
-                        ball.speedX *= -1; 
-                        playSynthSound('paddle');
-
-                        ball.x = WIDTH - PADDLE_WIDTH - ball.radius;
-                        
-                        let deltaY = ball.y - (player2Y + player2EffectiveHeight / 2);
-                        ball.speedY += deltaY * 5; 
-
-                        if (player2WeakShotActive) {
-                            ball.speedX *= 0.5; 
-                            ball.speedY *= 0.5;
-                        } else {
                             const currentSpeedMagnitude = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2);
                             if (currentSpeedMagnitude < 800) {
                                 ball.speedX *= 1.05;
                                 ball.speedY *= 1.05;
                             }
-                        }
 
-                        // MODIFIED: Only grow if the effect is active and not too big already
-                        if (ball.isGrowingActive && ball.radius < ball.originalRadius * 4) { 
-                            ball.radius *= 1.5; // Grow by 50% on paddle hit
+                            if (ball.isGrowingActive && ball.radius < ball.originalRadius * 4) { 
+                                ball.radius *= 1.5; 
+                            }
+                            // Continue loop to prevent checking scoring in the same frame
+                            continue; 
+                        }
+                    }
+                }
+
+                const player2EffectiveHeight = getEffectivePaddleHeight(2);
+                // --- FIX 2: Broader Collision Check for Player 2 ---
+                if (ball.speedX > 0 && ball.x + ball.radius >= WIDTH - PADDLE_WIDTH) {
+                    // Only check collision if we haven't already passed the paddle
+                    if (ball.x - ball.radius < WIDTH) {
+                        if (checkPaddleCollision(ball.x, ball.y, ball.radius, WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, player2EffectiveHeight)) {
+                            ball.speedX *= -1; 
+                            playSynthSound('paddle');
+
+                            // --- CRITICAL FIX: Snap ball to paddle face ---
+                            ball.x = WIDTH - PADDLE_WIDTH - ball.radius - 1;
+                            
+                            let deltaY = ball.y - (player2Y + player2EffectiveHeight / 2);
+                            ball.speedY += deltaY * 5; 
+
+                            if (player2WeakShotActive) {
+                                ball.speedX *= 0.5; 
+                                ball.speedY *= 0.5;
+                            } else {
+                                const currentSpeedMagnitude = Math.sqrt(ball.speedX ** 2 + ball.speedY ** 2);
+                                if (currentSpeedMagnitude < 800) {
+                                    ball.speedX *= 1.05;
+                                    ball.speedY *= 1.05;
+                                }
+                            }
+
+                            if (ball.isGrowingActive && ball.radius < ball.originalRadius * 4) { 
+                                ball.radius *= 1.5; 
+                            }
+                            // Continue loop to prevent checking scoring in the same frame
+                            continue;
                         }
                     }
                 }
