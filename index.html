@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RD/LR Pong</title> 
+    <title>RD/LR Pong - Power-ups V2</title> 
     <style>
         body {
             display: flex;
@@ -51,6 +51,145 @@
             font-size: 0.9em;
             color: #ccc;
         }
+
+        /* --- Mobile Controls Styling --- */
+        /* Common style for all fixed controls */
+        .mobile-controls-container, .mobile-pause-button, .p2-controls-container, .p2-pause-button {
+            position: fixed;
+            z-index: 1000;
+            transition: opacity 0.3s ease-in-out;
+            display: none; /* Hidden by default, shown via media query + JS */
+            opacity: 0;
+        }
+
+        /* Player 1 Controls (Bottom Left) */
+        .mobile-controls-container {
+            bottom: 20px;
+            left: 20px; 
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        /* Player 1 Pause Button (Bottom Right) */
+        .mobile-pause-button {
+            bottom: 20px;
+            right: 20px; 
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 165, 0, 0.3); 
+            color: white;
+            border: 2px solid white;
+            border-radius: 15px;
+            font-size: 30px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            line-height: 1; 
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+        }
+        
+        /* Player 2 Controls (Top Right) - NEW Position for Left-Hand Control */
+        .p2-controls-container {
+            top: 20px; 
+            right: 20px; /* Moved from left to right */
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        /* Player 2 Pause Button (Top Left) - NEW Position */
+        .p2-pause-button {
+            top: 20px; 
+            left: 20px; /* Moved from right to left */
+            width: 70px;
+            height: 70px;
+            background-color: rgba(0, 191, 255, 0.3); /* Distinct color */
+            color: white;
+            border: 2px solid white;
+            border-radius: 15px;
+            font-size: 30px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            line-height: 1; 
+            cursor: pointer;
+            user-select: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+        }
+
+        .mobile-control-button {
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 255, 255, 0.15); 
+            color: white;
+            border: 2px solid white;
+            border-radius: 15px;
+            font-size: 30px;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.1s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+        }
+        
+        /* Specific coloring for P2 buttons */
+        .p2-control-button {
+            background-color: rgba(0, 191, 255, 0.15); /* Blue/Cyan tint */
+        }
+
+        .mobile-control-button:active {
+            background-color: rgba(0, 255, 0, 0.3); /* P1 Green Activation */
+        }
+
+        .p2-control-button:active {
+            background-color: rgba(0, 191, 255, 0.5); /* P2 Blue Activation */
+        }
+
+        .mobile-pause-button:active {
+            background-color: rgba(255, 165, 0, 0.7); 
+        }
+        
+        .p2-pause-button:active {
+            background-color: rgba(0, 191, 255, 0.7); 
+        }
+
+
+        /* Show controls on small screens, BUT hide if the body has the 'hide-mobile-controls' class */
+        @media (max-width: 850px) { 
+            /* P1 Controls and Pause are always potentially visible in game state */
+            body:not(.hide-mobile-controls) .mobile-controls-container, 
+            body:not(.hide-mobile-controls) .mobile-pause-button { 
+                display: flex; 
+                opacity: 1;
+            }
+            
+            /* P2 Controls and Pause are ONLY visible in P2 mode */
+            body.player-vs-player:not(.hide-mobile-controls) .p2-controls-container,
+            body.player-vs-player:not(.hide-mobile-controls) .p2-pause-button {
+                display: flex;
+                opacity: 1;
+            }
+            
+        }
+        
+        /* Global force hide for all mobile elements when in menu or large screen */
+        body.hide-mobile-controls .mobile-controls-container,
+        body.hide-mobile-controls .mobile-pause-button,
+        body.hide-mobile-controls .p2-controls-container,
+        body.hide-mobile-controls .p2-pause-button {
+            display: none !important;
+            opacity: 0;
+        }
+        
     </style>
 </head>
 <body>
@@ -64,11 +203,30 @@
         <!-- Controls will be dynamically updated here by JavaScript -->
     </div>
 
+    <!-- P1 Mobile Touch Controls (Bottom Left) -->
+    <div class="mobile-controls-container">
+        <button id="mobileUp" class="mobile-control-button">▲</button>
+        <button id="mobileDown" class="mobile-control-button">▼</button>
+    </div>
+    
+    <!-- P1 Mobile Pause Button (Bottom Right) -->
+    <button id="mobilePause" class="mobile-pause-button">II</button> 
+    
+    <!-- P2 Mobile Touch Controls (Top Right) -->
+    <div class="p2-controls-container">
+        <button id="p2Up" class="mobile-control-button p2-control-button">▲</button>
+        <button id="p2Down" class="mobile-control-button p2-control-button">▼</button>
+    </div>
+    
+    <!-- P2 Mobile Pause Button (Top Left) -->
+    <button id="p2Pause" class="p2-pause-button">II</button> 
+
     <script>
         const canvas = document.getElementById('pongCanvas');
         const ctx = canvas.getContext('2d');
         const scoreInfo = document.getElementById('scoreInfo'); 
         const controlsDisplay = document.getElementById('controls-display');
+        const body = document.body; // Reference to the body element
 
         // --- AUDIO REPLACEMENT FOR PREVIEW ---
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -160,6 +318,15 @@
         let jumbleDurationTimerId = null;
         let jumbleCheckIntervalId = null; 
         let jumbleMessageRemaining = 0; 
+        let jumbleEndTime = 0; 
+
+        // Mobile Controls DOM Elements (Retrieved here)
+        const mobileUp = document.getElementById('mobileUp');
+        const mobileDown = document.getElementById('mobileDown');
+        const mobilePause = document.getElementById('mobilePause'); 
+        const p2Up = document.getElementById('p2Up'); // NEW
+        const p2Down = document.getElementById('p2Down'); // NEW
+        const p2Pause = document.getElementById('p2Pause'); // NEW
 
         // Game state variables
         let player1Y;
@@ -253,16 +420,82 @@
 
         // Input handling
         let keysPressed = {};
+
+        // --- START MOBILE CONTROLS SETUP ---
+        function setupMobileControls() {
+            if (!mobileUp || !mobileDown || !mobilePause || !p2Up || !p2Down || !p2Pause) return;
+
+            // Handler function to set the key state (P1: W/S, P2: ArrowUp/ArrowDown)
+            const handleStart = (key) => (e) => {
+                e.preventDefault(); 
+                keysPressed[key] = true;
+            };
+            
+            const handleEnd = (key) => (e) => {
+                e.preventDefault();
+                keysPressed[key] = false;
+            };
+
+            // Handler for Pause Button
+            const handlePauseClick = (e) => {
+                e.preventDefault();
+                if (appState === 'playing' && !isExploding) { 
+                    setAppState('paused');
+                    setupPauseMenuButtons(); 
+                } else if (appState === 'paused') {
+                    setAppState('playing');
+                    activeButtons.length = 0; 
+                    hoveredButton = null; 
+                    updateControlsDisplay(); 
+                }
+            };
+
+
+            // P1 Controls (Bottom Left)
+            mobileUp.addEventListener('mousedown', handleStart('w'));
+            mobileUp.addEventListener('touchstart', handleStart('w'));
+            mobileUp.addEventListener('mouseup', handleEnd('w'));
+            mobileUp.addEventListener('touchend', handleEnd('w'));
+
+            mobileDown.addEventListener('mousedown', handleStart('s'));
+            mobileDown.addEventListener('touchstart', handleStart('s'));
+            mobileDown.addEventListener('mouseup', handleEnd('s'));
+            mobileDown.addEventListener('touchend', handleEnd('s'));
+            
+            // P1 Pause Button (Bottom Right)
+            mobilePause.addEventListener('mousedown', handlePauseClick);
+            mobilePause.addEventListener('touchstart', handlePauseClick);
+
+            // P2 Controls (Top Right)
+            p2Up.addEventListener('mousedown', handleStart('ArrowUp'));
+            p2Up.addEventListener('touchstart', handleStart('ArrowUp'));
+            p2Up.addEventListener('mouseup', handleEnd('ArrowUp'));
+            p2Up.addEventListener('touchend', handleEnd('ArrowUp'));
+
+            p2Down.addEventListener('mousedown', handleStart('ArrowDown'));
+            p2Down.addEventListener('touchstart', handleStart('ArrowDown'));
+            p2Down.addEventListener('mouseup', handleEnd('ArrowDown'));
+            p2Down.addEventListener('touchend', handleEnd('ArrowDown'));
+            
+            // P2 Pause Button (Top Left)
+            p2Pause.addEventListener('mousedown', handlePauseClick);
+            p2Pause.addEventListener('touchstart', handlePauseClick);
+        }
+
+        setupMobileControls();
+        // --- END MOBILE CONTROLS SETUP ---
+
+
         document.addEventListener('keydown', (e) => {
             keysPressed[e.key] = true;
 
             if ((e.key === ' ' || e.key === 'Spacebar' || e.key === 'Escape')) { 
                 e.preventDefault(); 
                 if (appState === 'playing' && !isExploding) { 
-                    appState = 'paused';
+                    setAppState('paused');
                     setupPauseMenuButtons(); 
                 } else if (appState === 'paused') {
-                    appState = 'playing';
+                    setAppState('playing');
                     activeButtons.length = 0; 
                     hoveredButton = null; 
                     updateControlsDisplay(); 
@@ -340,7 +573,7 @@
                 ctx.font = `${PONG_TEXT_FONT_SIZE}px Arial`;
                 const textMetricsPONG = ctx.measureText('PONG');
                 const textWidthPONG = textMetricsPONG.width;
-                const textLeftX = (WIDTH / 2) - (textWidthPONG / 2);
+                const textLeftX = (WIDTH / 2) - (textMetricsPONG.width / 2);
                 
                 const textMetricsP = ctx.measureText('P');
                 const textWidthP = textMetricsP.width;
@@ -393,9 +626,32 @@
             }
         }
 
+        // --- Application State Manager (NEW) ---
+        function setAppState(newState) {
+            appState = newState;
+            
+            // 1. Toggle the CSS class on the body to control general mobile button visibility
+            const isPlayingOrPaused = (newState === 'playing' || newState === 'paused');
+            
+            if (isPlayingOrPaused) {
+                body.classList.remove('hide-mobile-controls');
+            } else {
+                body.classList.add('hide-mobile-controls');
+            }
+            
+            // 2. Toggle the Player vs Player class
+            if (playerMode === 'player2') {
+                body.classList.add('player-vs-player');
+            } else {
+                body.classList.remove('player-vs-player');
+            }
+        }
+
+
         // --- Menu and Game State Setup Functions ---
 
         function setupMainMenuButtons() {
+            setAppState('mainMenu'); 
             activeButtons.length = 0; 
             const btnWidth = 200;
             const btnHeight = 60;
@@ -404,21 +660,17 @@
 
             activeButtons.push(createButton("Classic Pong", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
                 lastSelectedGameMode = 'classic';
-                appState = 'playerModeSelection';
                 setupPlayerModeSelectionButtons();
             }, 'white', 'black', '#CCC')); 
             activeButtons.push(createButton("Double or Nothing", (WIDTH - btnWidth) / 2, startY + spacing, btnWidth, btnHeight, () => {
                 lastSelectedGameMode = 'doubleOrNothing';
-                appState = 'playerModeSelection';
                 setupPlayerModeSelectionButtons();
             }, 'white', 'black', '#CCC'));
             activeButtons.push(createButton("r0073dm0d3", (WIDTH - btnWidth) / 2, startY + spacing * 2, btnWidth, btnHeight, () => { 
                 lastSelectedGameMode = 'r0073dm0d3';
-                appState = 'playerModeSelection';
                 setupPlayerModeSelectionButtons();
             }, '#FFD700', 'black', '#FFFF00'));
             activeButtons.push(createButton("Options", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, () => { 
-                appState = 'options'; 
                 setupOptionsButtons(); 
             }, 'white', 'black', '#CCC'));
             hoveredButton = null; 
@@ -435,6 +687,7 @@
         }
 
         function setupPlayerModeSelectionButtons() {
+            setAppState('playerModeSelection');
             activeButtons.length = 0;
             const btnWidth = 200;
             const btnHeight = 60;
@@ -452,7 +705,6 @@
                 startGame();
             }, 'white', 'black', '#CCC'));
             activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 2 + 20, btnWidth, btnHeight, () => {
-                appState = 'mainMenu';
                 setupMainMenuButtons();
             }, '#666', 'white', '#888'));
             hoveredButton = null;
@@ -468,6 +720,7 @@
         }
 
         function setupOptionsButtons() {
+            setAppState('options'); 
             activeButtons.length = 0;
             const btnWidth = 150;
             const btnHeight = 50;
@@ -488,7 +741,6 @@
             activeButtons.push(createButton("Impossible", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, setDifficulty('impossible'), currentDifficulty === 'impossible' ? '#800080' : '#444', 'white', currentDifficulty === 'impossible' ? '#EE82EE' : '#666'));
             
             activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 4 + 20, btnWidth, btnHeight, () => {
-                appState = 'mainMenu'; 
                 setupMainMenuButtons(); 
             }, '#666', 'white', '#888'));
             hoveredButton = null; 
@@ -504,6 +756,7 @@
         }
 
         function setupPauseMenuButtons() {
+            setAppState('paused');
             activeButtons.length = 0;
             const btnWidth = 200;
             const btnHeight = 60;
@@ -515,7 +768,7 @@
             }
 
             activeButtons.push(createButton("Resume", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
-                appState = 'playing'; 
+                setAppState('playing');
                 activeButtons.length = 0; 
             }, 'white', 'black', '#CCC'));
 
@@ -523,7 +776,6 @@
 
             if (gameMode === 'r0073dm0d3') {
                 activeButtons.push(createButton("Power-Up Guide", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
-                    appState = 'powerUpIndex';
                     setupPowerUpIndexButtons();
                 }, '#FFD700', 'black', '#FFFFE0'));
                 currentY += spacing;
@@ -535,7 +787,6 @@
             currentY += spacing;
 
             activeButtons.push(createButton("Main Menu", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
-                appState = 'mainMenu'; 
                 setupMainMenuButtons(); 
             }, 'white', 'black', '#CCC'));
 
@@ -554,11 +805,11 @@
         }
 
         function setupPowerUpIndexButtons() {
+            setAppState('powerUpIndex');
             activeButtons.length = 0;
             const btnWidth = 200;
             const btnHeight = 60;
             activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, HEIGHT - 80, btnWidth, btnHeight, () => {
-                appState = 'paused';
                 setupPauseMenuButtons();
             }, 'white', 'black', '#CCC'));
         }
@@ -603,7 +854,6 @@
                     startGame(); 
                 }, 'white', 'black', '#CCC'));
                 activeButtons.push(createButton("Main Menu", (WIDTH - btnWidth) / 2, startY + spacing, btnWidth, btnHeight, () => {
-                    appState = 'mainMenu'; 
                     setupMainMenuButtons(); 
                 }, 'white', 'black', '#CCC'));
             }
@@ -723,9 +973,6 @@
                         if (ball.isInPlay) {
                             ball.isGrowingActive = true;
                             ball.growEffectEndTime = currentTime + BALL_GROW_DURATION_MS;
-                            // MODIFIED: Don't maximize radius instantly. Just enable the state.
-                            // ball.radius = BALL_RADIUS * 3; <-- Removed this logic if it was there,
-                            // relying on paddle hits now.
                         }
                     });
                     break;
@@ -892,12 +1139,14 @@
         }
 
         function startGame() {
+            setAppState('playing');
+            
             player1Score = 0;
             player2Score = 0;
             player1Y = (HEIGHT - PADDLE_HEIGHT) / 2; 
             player2Y = (HEIGHT - PADDLE_HEIGHT) / 2; 
             winner = null;
-            appState = 'playing'; 
+            
             AI_SPEED_MULTIPLIER = difficultyLevels[currentDifficulty]; 
             activeButtons.length = 0; 
             hoveredButton = null; 
@@ -939,6 +1188,7 @@
             const paddleMoveAmount = (SPEED_PADDLE * deltaTime) / 1000;
             const aiMoveAmount = paddleMoveAmount * AI_SPEED_MULTIPLIER;
 
+            // --- Player 1 Movement ---
             if (!isControlsJumbled) { 
                 if (keysPressed['w']) {
                     player1Y -= paddleMoveAmount;
@@ -957,6 +1207,7 @@
             player1Y = Math.max(0, Math.min(player1Y, HEIGHT - player1EffectiveHeight)); 
 
             const player2EffectiveHeight = getEffectivePaddleHeight(2);
+            // --- Player 2 / AI Movement ---
             if (playerMode === 'player2') {
                 if (keysPressed['ArrowUp']) {
                     player2Y -= paddleMoveAmount;
@@ -1057,7 +1308,7 @@
                 ball.x += ball.speedX * timeFactor;
                 ball.y += ball.speedY * timeFactor;
 
-                // --- FIX 1: Y-Axis Clamping (Prevents slide-out) ---
+                // --- Y-Axis Clamping (Prevents slide-out) ---
                 if (ball.y - ball.radius < 0) {
                     ball.y = ball.radius; // Hard stop at top
                     ball.speedY *= -1;
@@ -1067,11 +1318,8 @@
                 }
 
                 const player1EffectiveHeight = getEffectivePaddleHeight(1);
-                // --- FIX 2: Broader Collision Check for Player 1 ---
-                // Instead of strict 'less than', check if it overlaps paddle X range
+                // --- Collision Check for Player 1 ---
                 if (ball.speedX < 0 && ball.x - ball.radius <= PADDLE_WIDTH) {
-                    // Only check collision if we haven't already passed the paddle
-                    // (Prevent 'backward' collision check if tunneling happened)
                     if (ball.x + ball.radius > 0) { 
                         if (checkPaddleCollision(ball.x, ball.y, ball.radius, 0, player1Y, PADDLE_WIDTH, player1EffectiveHeight)) {
                             ball.speedX *= -1; 
@@ -1099,9 +1347,8 @@
                 }
 
                 const player2EffectiveHeight = getEffectivePaddleHeight(2);
-                // --- FIX 2: Broader Collision Check for Player 2 ---
+                // --- Collision Check for Player 2 ---
                 if (ball.speedX > 0 && ball.x + ball.radius >= WIDTH - PADDLE_WIDTH) {
-                    // Only check collision if we haven't already passed the paddle
                     if (ball.x - ball.radius < WIDTH) {
                         if (checkPaddleCollision(ball.x, ball.y, ball.radius, WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, player2EffectiveHeight)) {
                             ball.speedX *= -1; 
@@ -1165,11 +1412,11 @@
         function checkGameEnd() {
             if (player1Score >= WINNING_SCORE) {
                 winner = 'Player 1';
-                appState = 'gameOver'; 
+                setAppState('gameOver'); 
                 startMultiBallEffect(); 
             } else if (player2Score >= WINNING_SCORE) {
                 winner = 'Player 2 (' + (playerMode === 'ai' ? 'AI' : 'Player') + ')'; 
-                appState = 'gameOver'; 
+                setAppState('gameOver'); 
                 startMultiBallEffect(); 
             }
         }
@@ -1287,12 +1534,14 @@
 
         function jumbleControls() {
             isControlsJumbled = true;
-            jumbleMessageRemaining = 1000; 
-
+            
             const duration = Math.random() * (JUMBLE_DURATION_MAX - JUMBLE_DURATION_MIN) + JUMBLE_DURATION_MIN;
+            jumbleEndTime = performance.now() + duration; // NEW: Set end time
+            
             jumbleDurationTimerId = setTimeout(() => {
                 isControlsJumbled = false;
                 jumbleDurationTimerId = null;
+                jumbleEndTime = 0; // Reset end time
                 updateControlsDisplay(); 
             }, duration);
             updateControlsDisplay(); 
@@ -1319,13 +1568,15 @@
                 jumbleDurationTimerId = null;
             }
             isControlsJumbled = false;
-            jumbleMessageRemaining = 0;
+            jumbleEndTime = 0;
         }
 
         function updateControlsDisplay() {
             let controlsHtml = `
                 <p>Player 1 (Left Paddle): W (Up) / S (Down)</p>
             `;
+            // NOTE: Mobile controls are handled by on-screen buttons, so we only display keyboard instructions here.
+
             if (appState === 'playing') {
                 if (playerMode === 'ai') {
                     controlsHtml += `<p>Player 2 (Right Paddle): AI</p>`;
@@ -1345,17 +1596,23 @@
             controlsDisplay.innerHTML = controlsHtml;
         }
 
-        function drawJumbleMessage(deltaTime) {
-            if (jumbleMessageRemaining > 0) {
-                jumbleMessageRemaining -= deltaTime;
-                if (jumbleMessageRemaining < 0) jumbleMessageRemaining = 0;
+        function drawJumbleMessage(currentTime) {
+            if (!isControlsJumbled) return; 
 
-                const opacity = jumbleMessageRemaining > 500 ? 1 : jumbleMessageRemaining / 500; 
-                ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`; 
-                ctx.font = '30px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('CONTROLS JUMBLED!', WIDTH / 2, HEIGHT / 2 - 100);
-            }
+            const timeRemaining = Math.max(0, jumbleEndTime - currentTime);
+            const seconds = (timeRemaining / 1000).toFixed(1);
+            
+            // Text 1: The Warning (Top Center)
+            ctx.fillStyle = `rgba(255, 0, 0, 1)`; 
+            ctx.font = '30px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('CONTROLS JUMBLED!', WIDTH / 2, 40); // Y=40
+
+            // Text 2: The Timer (Below Warning)
+            ctx.fillStyle = `rgba(255, 255, 255, 1)`; 
+            ctx.font = '48px Arial'; // Slightly smaller font to fit well
+            ctx.textAlign = 'center';
+            ctx.fillText(seconds, WIDTH / 2, 95); // Y=95 (Below Warning, Above Net)
         }
 
         let lastTime = 0;
@@ -1422,7 +1679,7 @@
                     
                     scoreInfo.textContent = `Player 1: ${player1Score} | Player 2 (${playerMode === 'ai' ? 'AI' : 'Player'}): ${player2Score}`;
 
-                    drawJumbleMessage(deltaTime); 
+                    drawJumbleMessage(currentTime); // Timer drawn at top center
                     break;
                 case 'paused':
                     drawRect(0, 0, WIDTH, HEIGHT, 'black');
@@ -1450,7 +1707,7 @@
                     break;
                 case 'gameOver':
                     stopJumbleChecks(); 
-                    updateMultiBalls(currentTime, deltaTime); // FIXED: Passed deltaTime here!
+                    updateMultiBalls(currentTime, deltaTime); 
                     drawRect(0, 0, WIDTH, HEIGHT, 'black'); 
                     drawMultiBalls(); 
                     drawGameOverScreen(); 
@@ -1460,7 +1717,7 @@
 
             requestAnimationFrame(gameLoop); 
         }
-
+        
         // --- Initial Setup Call ---
         setupMainMenuButtons(); 
         requestAnimationFrame(gameLoop); 
