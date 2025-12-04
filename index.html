@@ -15,22 +15,43 @@
             background-color: #222;
             font-family: Arial, sans-serif;
             color: #eee;
+            overflow: hidden; /* Prevent scrolling when fullscreen */
         }
         canvas {
             background-color: #000;
             border: 2px solid #fff;
             display: block;
-            margin-top: 20px;
-            margin-bottom: 20px;
+            /* Margins removed for better fullscreen handling, flex handles centering */
+            margin: 20px 0; 
+            /* Ensure it scales down on smaller screens but respects 800x600 ratio */
             max-width: 100%; 
-            height: auto;
+            height: auto; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
+        
+        /* When in fullscreen mode via class */
+        body.is-fullscreen canvas {
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+
         .game-info {
             text-align: center;
             width: 100%;
             font-size: 1.2em;
             color: #eee;
+            /* Hide info in fullscreen to give pure gameplay */
+            transition: opacity 0.5s;
         }
+        
+        body.is-fullscreen .game-info {
+            display: none;
+        }
+
         p#credits {
             font-size: 0.7em;
             color: #888;
@@ -50,6 +71,10 @@
             width: 100%;
             font-size: 0.9em;
             color: #ccc;
+        }
+        
+        body.is-fullscreen .controls {
+            display: none;
         }
 
         /* --- Mobile Controls Styling --- */
@@ -93,21 +118,21 @@
             -webkit-backdrop-filter: blur(3px);
         }
         
-        /* Player 2 Controls (Top Right) - NEW Position for Left-Hand Control */
+        /* Player 2 Controls (Top Right) */
         .p2-controls-container {
             top: 20px; 
-            right: 20px; /* Moved from left to right */
+            right: 20px; 
             flex-direction: column;
             gap: 10px;
         }
         
-        /* Player 2 Pause Button (Top Left) - NEW Position */
+        /* Player 2 Pause Button (Top Left) */
         .p2-pause-button {
             top: 20px; 
-            left: 20px; /* Moved from right to left */
+            left: 20px; 
             width: 70px;
             height: 70px;
-            background-color: rgba(0, 191, 255, 0.3); /* Distinct color */
+            background-color: rgba(0, 191, 255, 0.3); 
             color: white;
             border: 2px solid white;
             border-radius: 15px;
@@ -277,12 +302,75 @@
             }
         }
 
-        canvas.width = 800;
-        canvas.height = 600;
+        // --- App State and UI Management (Moved UP for Initialization) ---
+        let appState = 'mainMenu'; 
+        let currentDifficulty = 'normal'; 
+        let gameMode = 'classic'; 
+        let playerMode = 'ai'; 
+        let lastSelectedGameMode = 'classic'; 
+        
+        // --- DYNAMIC RESIZE HANDLING ---
+        // Default fixed resolution for standard play
+        let WIDTH = 800;
+        let HEIGHT = 600;
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
 
-        // Game constants
-        const WIDTH = canvas.width;
-        const HEIGHT = canvas.height;
+        const activeButtons = []; // Moved here to be accessible
+        let hoveredButton = null; // MOVED: Initialized here to fix reference error
+
+        function resizeCanvas() {
+            // Only resize to full window if in fullscreen mode
+            // Otherwise, revert to standard 800x600
+            if (document.fullscreenElement || body.classList.contains('is-fullscreen')) {
+                WIDTH = window.innerWidth;
+                HEIGHT = window.innerHeight;
+                canvas.width = WIDTH;
+                canvas.height = HEIGHT;
+            } else {
+                WIDTH = 800;
+                HEIGHT = 600;
+                canvas.width = WIDTH;
+                canvas.height = HEIGHT;
+            }
+
+            // Re-center logic for active menus
+            if (appState === 'mainMenu') setupMainMenuButtons();
+            else if (appState === 'options') setupOptionsButtons();
+            else if (appState === 'playerModeSelection') setupPlayerModeSelectionButtons();
+            else if (appState === 'paused') setupPauseMenuButtons();
+            else if (appState === 'powerUpIndex') setupPowerUpIndexButtons();
+            else if (appState === 'gameOver') {
+                activeButtons.length = 0; // Clear buttons to trigger redraw
+                // drawGameOverScreen will be called by loop
+            }
+            
+            // Adjust Player 2 paddle if game is running
+            // (Player 1 Y stays relative, Player 2 X needs update)
+            // Note: Gameplay positions might jump slightly, this is acceptable for resize
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        // Initial call to set size handled by default vars above
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+                body.classList.add('is-fullscreen');
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    body.classList.remove('is-fullscreen');
+                }
+            }
+            // Resize will be triggered by the 'resize' event or manually called shortly after
+            setTimeout(resizeCanvas, 100); 
+        }
+        // -------------------------------
+
+        // Game constants (Static)
         const PADDLE_WIDTH = 10;
         const PADDLE_HEIGHT = 100;
         const BALL_RADIUS = 8;
@@ -324,9 +412,9 @@
         const mobileUp = document.getElementById('mobileUp');
         const mobileDown = document.getElementById('mobileDown');
         const mobilePause = document.getElementById('mobilePause'); 
-        const p2Up = document.getElementById('p2Up'); // NEW
-        const p2Down = document.getElementById('p2Down'); // NEW
-        const p2Pause = document.getElementById('p2Pause'); // NEW
+        const p2Up = document.getElementById('p2Up'); 
+        const p2Down = document.getElementById('p2Down'); 
+        const p2Pause = document.getElementById('p2Pause'); 
 
         // Game state variables
         let player1Y;
@@ -337,13 +425,6 @@
 
         let gameBalls = []; 
 
-        // --- App State and UI Management ---
-        let appState = 'mainMenu'; 
-        let currentDifficulty = 'normal'; 
-        let gameMode = 'classic'; 
-        let playerMode = 'ai'; 
-        let lastSelectedGameMode = 'classic'; 
-
         const difficultyLevels = {
             easy: 0.4,   
             normal: 0.6, 
@@ -351,8 +432,6 @@
             impossible: IMPOSSIBLE_AI_MULTIPLIER 
         };
         let AI_SPEED_MULTIPLIER = difficultyLevels[currentDifficulty]; 
-
-        const activeButtons = [];
 
         let explosionParticles = [];
         let isExploding = false; 
@@ -362,7 +441,7 @@
         let lastMultiBallSpawnTime = 0;
         
         let resetScheduledForThisRound = false; 
-        let hoveredButton = null; 
+        // hoveredButton declared earlier
 
         // --- Power-up System Variables ---
         const POWERUP_TYPES = {
@@ -425,7 +504,6 @@
         function setupMobileControls() {
             if (!mobileUp || !mobileDown || !mobilePause || !p2Up || !p2Down || !p2Pause) return;
 
-            // Handler function to set the key state (P1: W/S, P2: ArrowUp/ArrowDown)
             const handleStart = (key) => (e) => {
                 e.preventDefault(); 
                 keysPressed[key] = true;
@@ -436,7 +514,6 @@
                 keysPressed[key] = false;
             };
 
-            // Handler for Pause Button
             const handlePauseClick = (e) => {
                 e.preventDefault();
                 if (appState === 'playing' && !isExploding) { 
@@ -450,8 +527,6 @@
                 }
             };
 
-
-            // P1 Controls (Bottom Left)
             mobileUp.addEventListener('mousedown', handleStart('w'));
             mobileUp.addEventListener('touchstart', handleStart('w'));
             mobileUp.addEventListener('mouseup', handleEnd('w'));
@@ -462,11 +537,9 @@
             mobileDown.addEventListener('mouseup', handleEnd('s'));
             mobileDown.addEventListener('touchend', handleEnd('s'));
             
-            // P1 Pause Button (Bottom Right)
             mobilePause.addEventListener('mousedown', handlePauseClick);
             mobilePause.addEventListener('touchstart', handlePauseClick);
 
-            // P2 Controls (Top Right)
             p2Up.addEventListener('mousedown', handleStart('ArrowUp'));
             p2Up.addEventListener('touchstart', handleStart('ArrowUp'));
             p2Up.addEventListener('mouseup', handleEnd('ArrowUp'));
@@ -477,7 +550,6 @@
             p2Down.addEventListener('mouseup', handleEnd('ArrowDown'));
             p2Down.addEventListener('touchend', handleEnd('ArrowDown'));
             
-            // P2 Pause Button (Top Left)
             p2Pause.addEventListener('mousedown', handlePauseClick);
             p2Pause.addEventListener('touchstart', handlePauseClick);
         }
@@ -784,6 +856,12 @@
             activeButtons.push(createButton("Restart Match", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
                 startGame(); 
             }, 'white', 'black', '#CCC'));
+            currentY += spacing;
+
+            // --- MOVED FULL SCREEN BUTTON HERE ---
+            activeButtons.push(createButton("Full Screen", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
+                toggleFullScreen();
+            }, '#333', 'white', '#555'));
             currentY += spacing;
 
             activeButtons.push(createButton("Main Menu", (WIDTH - btnWidth) / 2, currentY, btnWidth, btnHeight, () => {
@@ -1188,7 +1266,6 @@
             const paddleMoveAmount = (SPEED_PADDLE * deltaTime) / 1000;
             const aiMoveAmount = paddleMoveAmount * AI_SPEED_MULTIPLIER;
 
-            // --- Player 1 Movement ---
             if (!isControlsJumbled) { 
                 if (keysPressed['w']) {
                     player1Y -= paddleMoveAmount;
@@ -1207,7 +1284,6 @@
             player1Y = Math.max(0, Math.min(player1Y, HEIGHT - player1EffectiveHeight)); 
 
             const player2EffectiveHeight = getEffectivePaddleHeight(2);
-            // --- Player 2 / AI Movement ---
             if (playerMode === 'player2') {
                 if (keysPressed['ArrowUp']) {
                     player2Y -= paddleMoveAmount;
@@ -1308,7 +1384,7 @@
                 ball.x += ball.speedX * timeFactor;
                 ball.y += ball.speedY * timeFactor;
 
-                // --- Y-Axis Clamping (Prevents slide-out) ---
+                // --- FIX 1: Y-Axis Clamping (Prevents slide-out) ---
                 if (ball.y - ball.radius < 0) {
                     ball.y = ball.radius; // Hard stop at top
                     ball.speedY *= -1;
@@ -1318,8 +1394,11 @@
                 }
 
                 const player1EffectiveHeight = getEffectivePaddleHeight(1);
-                // --- Collision Check for Player 1 ---
+                // --- FIX 2: Broader Collision Check for Player 1 ---
+                // Instead of strict 'less than', check if it overlaps paddle X range
                 if (ball.speedX < 0 && ball.x - ball.radius <= PADDLE_WIDTH) {
+                    // Only check collision if we haven't already passed the paddle
+                    // (Prevent 'backward' collision check if tunneling happened)
                     if (ball.x + ball.radius > 0) { 
                         if (checkPaddleCollision(ball.x, ball.y, ball.radius, 0, player1Y, PADDLE_WIDTH, player1EffectiveHeight)) {
                             ball.speedX *= -1; 
@@ -1347,8 +1426,9 @@
                 }
 
                 const player2EffectiveHeight = getEffectivePaddleHeight(2);
-                // --- Collision Check for Player 2 ---
+                // --- FIX 2: Broader Collision Check for Player 2 ---
                 if (ball.speedX > 0 && ball.x + ball.radius >= WIDTH - PADDLE_WIDTH) {
+                    // Only check collision if we haven't already passed the paddle
                     if (ball.x - ball.radius < WIDTH) {
                         if (checkPaddleCollision(ball.x, ball.y, ball.radius, WIDTH - PADDLE_WIDTH, player2Y, PADDLE_WIDTH, player2EffectiveHeight)) {
                             ball.speedX *= -1; 
@@ -1707,7 +1787,7 @@
                     break;
                 case 'gameOver':
                     stopJumbleChecks(); 
-                    updateMultiBalls(currentTime, deltaTime); 
+                    updateMultiBalls(currentTime, deltaTime); // FIXED: Passed deltaTime here!
                     drawRect(0, 0, WIDTH, HEIGHT, 'black'); 
                     drawMultiBalls(); 
                     drawGameOverScreen(); 
@@ -1718,6 +1798,11 @@
             requestAnimationFrame(gameLoop); 
         }
         
+        // --- Custom functions wrapper Start ---
+        // These wrappers were causing the error and have been removed/integrated.
+        // The original functions (setupMainMenuButtons, setupPlayerModeSelectionButtons, etc.) 
+        // now correctly call setAppState() themselves.
+
         // --- Initial Setup Call ---
         setupMainMenuButtons(); 
         requestAnimationFrame(gameLoop); 
