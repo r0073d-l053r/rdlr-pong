@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RD/LR Pong</title> 
+    <title>RD/LR Pong - Power-ups V2</title> 
     <style>
         body {
             display: flex;
@@ -344,7 +344,7 @@
         let hoveredButton = null; // MOVED: Initialized here to fix reference error
 
         function resizeCanvas() {
-            let oldScale = SCALE_FACTOR; 
+            let oldScale = SCALE_FACTOR; // Capture old scale to calculate ratio
             let newScale = 1;
 
             // --- MODIFIED RESIZE LOGIC ---
@@ -383,8 +383,8 @@
             // --- UPDATE EXISTING GAME OBJECTS TO NEW SCALE ---
             // 1. Update Balls
             gameBalls.forEach(ball => {
-                ball.x *= resizeRatio; 
-                ball.y *= resizeRatio; 
+                ball.x *= resizeRatio; // Reposition relative to new width
+                ball.y *= resizeRatio; // Reposition relative to new height
                 ball.radius *= resizeRatio; 
                 ball.originalRadius *= resizeRatio;
                 ball.speedX *= resizeRatio;
@@ -412,6 +412,10 @@
                 activeButtons.length = 0; // Clear buttons to trigger redraw
                 // drawGameOverScreen will be called by loop
             }
+            
+            // Adjust Player 2 paddle if game is running
+            // (Player 1 Y stays relative, Player 2 X needs update)
+            // Note: Gameplay positions might jump slightly, this is acceptable for resize
         }
 
         window.addEventListener('resize', resizeCanvas);
@@ -633,7 +637,8 @@
         document.addEventListener('keydown', (e) => {
             keysPressed[e.key] = true;
 
-            if ((e.key === ' ' || e.key === 'Spacebar' || e.key === 'Escape')) { 
+            // --- MODIFIED: Removed ESC key handling for pause ---
+            if ((e.key === ' ' || e.key === 'Spacebar')) { 
                 e.preventDefault(); 
                 if (appState === 'playing' && !isExploding) { 
                     setAppState('paused');
@@ -960,10 +965,12 @@
             activeButtons.push(createButton("Hard", (WIDTH - btnWidth) / 2, startY + spacing * 2, btnWidth, btnHeight, setDifficulty('hard'), currentDifficulty === 'hard' ? '#F44336' : '#444', 'white', currentDifficulty === 'hard' ? 'lightcoral' : '#666'));
             activeButtons.push(createButton("Impossible", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, setDifficulty('impossible'), currentDifficulty === 'impossible' ? '#800080' : '#444', 'white', currentDifficulty === 'impossible' ? '#EE82EE' : '#666'));
             
-            // --- NEW: FULL SCREEN TOGGLE BUTTON ---
-            // REMOVED from options, moved to pause menu per request
-            
-            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 4 + 20, btnWidth, btnHeight, () => {
+            // --- ADDED FULL SCREEN BUTTON TO OPTIONS MENU ---
+            activeButtons.push(createButton("Full Screen", (WIDTH - btnWidth) / 2, startY + spacing * 4, btnWidth, btnHeight, () => {
+                toggleFullScreen();
+            }, '#333', 'white', '#555'));
+
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 5 + 20, btnWidth, btnHeight, () => {
                 setupMainMenuButtons(); 
             }, '#666', 'white', '#888'));
             hoveredButton = null; 
@@ -1836,9 +1843,9 @@
                 } else {
                     controlsHtml += `<p>Player 2 (Right Paddle): Arrow Up / Arrow Down</p>`;
                 }
-                controlsHtml += `<p>Press Spacebar or ESC to Pause/Unpause</p>`; 
+                controlsHtml += `<p>Press Spacebar to Pause/Unpause</p>`; 
             } else {
-                controlsHtml += `<p>Press Spacebar or ESC to Pause/Unpause (during game)</p>`; 
+                controlsHtml += `<p>Press Spacebar to Pause/Unpause (during game)</p>`; 
                 controlsHtml += `<p>Click buttons to navigate menus.</p>`;
             }
             controlsDisplay.innerHTML = controlsHtml;
