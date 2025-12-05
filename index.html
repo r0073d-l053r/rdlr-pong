@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RD/LR Pong - Power-ups V2</title> 
+    <title>RD/LR Pong</title> 
     <style>
         body {
             display: flex;
@@ -49,6 +49,7 @@
             height: auto;
             max-width: 100%;
             max-height: 100%;
+            object-fit: contain;
             /* ------------------------------------------ */
         }
 
@@ -343,6 +344,32 @@
         const activeButtons = []; // Moved here to be accessible
         let hoveredButton = null; // MOVED: Initialized here to fix reference error
 
+        // --- MOVED UP: Define updateControlsDisplay first ---
+        function updateControlsDisplay() {
+            let controlsHtml = `
+                <p>Player 1 (Left Paddle): W (Up) / S (Down)</p>
+            `;
+            // NOTE: Mobile controls are handled by on-screen buttons, so we only display keyboard instructions here.
+
+            if (appState === 'playing') {
+                if (playerMode === 'ai') {
+                    controlsHtml += `<p>Player 2 (Right Paddle): AI</p>`;
+                    if (currentDifficulty === 'impossible') {
+                        if (isControlsJumbled) {
+                            controlsHtml += `<p style="color: red;">PLAYER 1 CONTROLS JUMBLED!</p>`;
+                        }
+                    }
+                } else {
+                    controlsHtml += `<p>Player 2 (Right Paddle): Arrow Up / Arrow Down</p>`;
+                }
+                controlsHtml += `<p>Press Spacebar to Pause/Unpause</p>`; 
+            } else {
+                controlsHtml += `<p>Press Spacebar to Pause/Unpause (during game)</p>`; 
+                controlsHtml += `<p>Click buttons to navigate menus.</p>`;
+            }
+            controlsDisplay.innerHTML = controlsHtml;
+        }
+
         function resizeCanvas() {
             let oldScale = SCALE_FACTOR; // Capture old scale to calculate ratio
             let newScale = 1;
@@ -375,9 +402,9 @@
                 newScale = 1;
             }
             
+            // Allows scaling DOWN if the window is smaller than 800px
             SCALE_FACTOR = newScale;
             
-            // Avoid division by zero or weird jumps on first load
             const resizeRatio = (oldScale === 0) ? 1 : newScale / oldScale;
 
             // --- UPDATE EXISTING GAME OBJECTS TO NEW SCALE ---
@@ -672,7 +699,9 @@
 
         function drawText(text, x, y, color, fontSize = 40, align = 'center') {
             ctx.fillStyle = color;
-            ctx.font = `${fontSize}px Arial`;
+            // --- UI SCALING FIX: Apply Scale Factor to Fonts ---
+            ctx.font = `${fontSize * SCALE_FACTOR}px Arial`;
+            // ------------------------------------------------
             ctx.textAlign = align;
             ctx.fillText(text, x, y);
         }
@@ -699,12 +728,14 @@
             ctx.fillStyle = displayColor;
             ctx.beginPath();
             if (ctx.roundRect) {
-                 ctx.roundRect(button.x, button.y, button.width, button.height, BUTTON_CORNER_RADIUS);
+                 ctx.roundRect(button.x, button.y, button.width, button.height, BUTTON_CORNER_RADIUS * SCALE_FACTOR);
             } else {
                  ctx.rect(button.x, button.y, button.width, button.height);
             }
             ctx.fill();
-            drawText(button.text, button.x + button.width / 2, button.y + button.height / 2 + 10, button.textColor, 24);
+            
+            // Font size also scaled in drawText
+            drawText(button.text, button.x + button.width / 2, button.y + button.height / 2 + (10 * SCALE_FACTOR), button.textColor, 24);
         }
 
         function handleButtonClick(event) {
@@ -716,7 +747,7 @@
             const mouseY = (event.clientY - rect.top) * scaleY;    
 
             if (appState === 'mainMenu') {
-                const PONG_TEXT_FONT_SIZE = 80;
+                const PONG_TEXT_FONT_SIZE = 80 * SCALE_FACTOR; // Scale Title font
                 const PONG_TEXT_Y = HEIGHT / 4; 
                 
                 ctx.font = `${PONG_TEXT_FONT_SIZE}px Arial`;
@@ -812,10 +843,13 @@
         function setupMainMenuButtons() {
             setAppState('mainMenu'); 
             activeButtons.length = 0; 
-            const btnWidth = 200;
-            const btnHeight = 60;
+            
+            // --- UI SCALING FIX: Scale Button Dimensions ---
+            const btnWidth = 200 * SCALE_FACTOR;
+            const btnHeight = 60 * SCALE_FACTOR;
             const startY = HEIGHT / 2 - btnHeight * 2; 
-            const spacing = btnHeight + 20;
+            const spacing = btnHeight + (20 * SCALE_FACTOR);
+            // -----------------------------------------------
 
             activeButtons.push(createButton("Classic Pong", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
                 lastSelectedGameMode = 'classic';
@@ -832,6 +866,12 @@
             activeButtons.push(createButton("Options", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, () => { 
                 setupOptionsButtons(); 
             }, 'white', 'black', '#CCC'));
+            
+            // New Full Screen Button in Main Menu
+            activeButtons.push(createButton("Full Screen", (WIDTH - btnWidth) / 2, startY + spacing * 4, btnWidth, btnHeight, () => {
+                toggleFullScreen();
+            }, '#333', 'white', '#555'));
+            
             hoveredButton = null; 
             updateControlsDisplay(); 
         }
@@ -914,10 +954,12 @@
         function setupPlayerModeSelectionButtons() {
             setAppState('playerModeSelection');
             activeButtons.length = 0;
-            const btnWidth = 200;
-            const btnHeight = 60;
+            // --- UI SCALING FIX ---
+            const btnWidth = 200 * SCALE_FACTOR;
+            const btnHeight = 60 * SCALE_FACTOR;
             const startY = HEIGHT / 2 - btnHeight * 1.5;
-            const spacing = btnHeight + 20;
+            const spacing = btnHeight + (20 * SCALE_FACTOR);
+            // ---------------------
 
             activeButtons.push(createButton("Player vs. AI", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
                 gameMode = lastSelectedGameMode;
@@ -929,7 +971,7 @@
                 playerMode = 'player2';
                 startGame();
             }, 'white', 'black', '#CCC'));
-            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 2 + 20, btnWidth, btnHeight, () => {
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 2 + (20 * SCALE_FACTOR), btnWidth, btnHeight, () => {
                 setupMainMenuButtons();
             }, '#666', 'white', '#888'));
             hoveredButton = null;
@@ -947,10 +989,12 @@
         function setupOptionsButtons() {
             setAppState('options'); 
             activeButtons.length = 0;
-            const btnWidth = 150;
-            const btnHeight = 50;
+            // --- UI SCALING FIX ---
+            const btnWidth = 150 * SCALE_FACTOR;
+            const btnHeight = 50 * SCALE_FACTOR;
             const startY = HEIGHT / 2 - btnHeight * 2; 
-            const spacing = btnHeight + 15;
+            const spacing = btnHeight + (15 * SCALE_FACTOR);
+            // ---------------------
 
             const setDifficulty = (level) => {
                 return () => {
@@ -965,12 +1009,12 @@
             activeButtons.push(createButton("Hard", (WIDTH - btnWidth) / 2, startY + spacing * 2, btnWidth, btnHeight, setDifficulty('hard'), currentDifficulty === 'hard' ? '#F44336' : '#444', 'white', currentDifficulty === 'hard' ? 'lightcoral' : '#666'));
             activeButtons.push(createButton("Impossible", (WIDTH - btnWidth) / 2, startY + spacing * 3, btnWidth, btnHeight, setDifficulty('impossible'), currentDifficulty === 'impossible' ? '#800080' : '#444', 'white', currentDifficulty === 'impossible' ? '#EE82EE' : '#666'));
             
-            // --- ADDED FULL SCREEN BUTTON TO OPTIONS MENU ---
+            // --- NEW: FULL SCREEN TOGGLE BUTTON ---
             activeButtons.push(createButton("Full Screen", (WIDTH - btnWidth) / 2, startY + spacing * 4, btnWidth, btnHeight, () => {
                 toggleFullScreen();
             }, '#333', 'white', '#555'));
 
-            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 5 + 20, btnWidth, btnHeight, () => {
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, startY + spacing * 5 + (20 * SCALE_FACTOR), btnWidth, btnHeight, () => {
                 setupMainMenuButtons(); 
             }, '#666', 'white', '#888'));
             hoveredButton = null; 
@@ -988,13 +1032,15 @@
         function setupPauseMenuButtons() {
             setAppState('paused');
             activeButtons.length = 0;
-            const btnWidth = 200;
-            const btnHeight = 60;
+            // --- UI SCALING FIX ---
+            const btnWidth = 200 * SCALE_FACTOR;
+            const btnHeight = 60 * SCALE_FACTOR;
             let startY = HEIGHT / 2 - btnHeight * 1.5;
-            const spacing = btnHeight + 20;
+            const spacing = btnHeight + (20 * SCALE_FACTOR);
+            // ---------------------
 
             if (gameMode === 'r0073dm0d3') {
-                startY -= 40; 
+                startY -= 40 * SCALE_FACTOR; 
             }
 
             activeButtons.push(createButton("Resume", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
@@ -1043,9 +1089,11 @@
         function setupPowerUpIndexButtons() {
             setAppState('powerUpIndex');
             activeButtons.length = 0;
-            const btnWidth = 200;
-            const btnHeight = 60;
-            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, HEIGHT - 80, btnWidth, btnHeight, () => {
+            // --- UI SCALING FIX ---
+            const btnWidth = 200 * SCALE_FACTOR;
+            const btnHeight = 60 * SCALE_FACTOR;
+            // ---------------------
+            activeButtons.push(createButton("Back", (WIDTH - btnWidth) / 2, HEIGHT - (80 * SCALE_FACTOR), btnWidth, btnHeight, () => {
                 setupPauseMenuButtons();
             }, 'white', 'black', '#CCC'));
         }
@@ -1055,19 +1103,20 @@
             
             drawText('Power-Up Guide', WIDTH / 2, 60, 'gold', 50);
             
-            let startY = 140;
-            const spacing = 70;
+            let startY = 140 * SCALE_FACTOR;
+            const spacing = 70 * SCALE_FACTOR;
             const types = Object.values(POWERUP_TYPES);
             
             ctx.textAlign = 'left';
-            ctx.font = '20px Arial';
+            // Scale font size in style string manually since we draw circles too
+            ctx.font = `${20 * SCALE_FACTOR}px Arial`;
 
             types.forEach((type, index) => {
                 const def = POWERUP_DEFINITIONS[type];
                 const y = startY + index * spacing;
-                drawCircle(150, y, 20, def.color);
+                drawCircle(150 * SCALE_FACTOR, y, 20 * SCALE_FACTOR, def.color);
                 ctx.fillStyle = 'white';
-                ctx.fillText(def.description, 200, y + 7);
+                ctx.fillText(def.description, 200 * SCALE_FACTOR, y + (7 * SCALE_FACTOR));
             });
             
             ctx.textAlign = 'center'; 
@@ -1078,12 +1127,14 @@
         }
 
         function drawGameOverScreen() {
-            drawText(`${winner} Wins!`, WIDTH / 2, HEIGHT / 2 - 60, 'gold', 60);
+            drawText(`${winner} Wins!`, WIDTH / 2, HEIGHT / 2 - (60 * SCALE_FACTOR), 'gold', 60);
 
-            const btnWidth = 200;
-            const btnHeight = 60;
-            const startY = HEIGHT / 2 + 10;
-            const spacing = btnHeight + 20;
+            // --- UI SCALING FIX ---
+            const btnWidth = 200 * SCALE_FACTOR;
+            const btnHeight = 60 * SCALE_FACTOR;
+            const startY = HEIGHT / 2 + (10 * SCALE_FACTOR);
+            const spacing = btnHeight + (20 * SCALE_FACTOR);
+            // ---------------------
 
             if (activeButtons.length === 0) {
                 activeButtons.push(createButton("Play Again", (WIDTH - btnWidth) / 2, startY, btnWidth, btnHeight, () => {
@@ -1826,6 +1877,7 @@
             jumbleEndTime = 0;
         }
 
+        // --- MOVED UP: Define updateControlsDisplay first ---
         function updateControlsDisplay() {
             let controlsHtml = `
                 <p>Player 1 (Left Paddle): W (Up) / S (Down)</p>
