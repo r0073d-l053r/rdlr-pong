@@ -38,7 +38,7 @@ The game is designed to be fully self-contained in a single HTML file, making it
 | :---- | :---- | :---- | :---- |
 | **Move Up** | W | ArrowUp | (N/A) |
 | **Move Down** | S | ArrowDown | (N/A) |
-| **Pause/Resume** | (N/A) | (N/A) | Spacebar or ESC |
+| **Pause/Resume** | (N/A) | (N/A) | Spacebar |
 | **Menu Interaction** | (N/A) | (N/A) | Mouse Click |
 
 ***Note:** The "Impossible" AI difficulty has a chance to temporarily "jumble" Player 1's controls.*
