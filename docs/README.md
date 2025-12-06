@@ -1,5 +1,3 @@
-# 
-
 # **RD/LR Pong**
 
 ## **Overview**
